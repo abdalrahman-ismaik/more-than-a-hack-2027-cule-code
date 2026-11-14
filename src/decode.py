@@ -10,39 +10,45 @@ import numpy as np
 
 H, A, D = 0, 1, 2
 
-# Per-frame transition probabilities. Chosen from football reasoning (possession changes every
-# ~10-20 s, stoppages every ~15-40 s, dead-ball stretches of a few seconds), not from the ground truth.
-P_HOME_TO_DEAD = 0.0015
-P_HOME_TO_AWAY = 0.0006
-P_AWAY_TO_DEAD = 0.0015
-P_AWAY_TO_HOME = 0.0006
+# Per-frame transition probabilities. Set on other matches (Metrica sample game 1, checked on game 2,
+# see src/sweep_metrica.py), not on the challenge match or its public window.
+P_HOME_TO_DEAD = 0.004
+P_HOME_TO_AWAY = 0.002
 P_DEAD_TO_TEAM = 0.004
 P_DEAD_STAY = 0.992
 
-TRANSITIONS = np.array([
-    [1 - P_HOME_TO_DEAD - P_HOME_TO_AWAY, P_HOME_TO_AWAY, P_HOME_TO_DEAD],
-    [P_AWAY_TO_HOME, 1 - P_AWAY_TO_DEAD - P_AWAY_TO_HOME, P_AWAY_TO_DEAD],
-    [P_DEAD_TO_TEAM, P_DEAD_TO_TEAM, P_DEAD_STAY],
-])
+def make_transitions(p_team_to_dead=P_HOME_TO_DEAD, p_switch=P_HOME_TO_AWAY,
+                     p_dead_to_team=P_DEAD_TO_TEAM, p_dead_stay=P_DEAD_STAY):
+    """3x3 per-frame transition matrix over (H, A, D). Rows sum to one."""
+    stay = 1 - p_team_to_dead - p_switch
+    return np.array([
+        [stay, p_switch, p_team_to_dead],
+        [p_switch, stay, p_team_to_dead],
+        [p_dead_to_team, p_dead_to_team, p_dead_stay],
+    ])
+
+
+TRANSITIONS = make_transitions()
 
 # Emission weights (log-likelihood units), set by hand.
-W_CONTROL = 1.0   # how strongly the nearest-player geometry decides H vs A
+W_CONTROL = 0.5   # how strongly the nearest-player geometry decides H vs A (other-match choice)
 W_TAG = 0.5       # how strongly a Smart Tagging team phase nudges H vs A
 W_OUT = 3.0       # ball visibly outside the pitch: dead
 W_RESTART = 3.0   # SET PIECES interval: dead
-BIAS_DEAD = 0.5   # normal play is not dead, so D starts behind by this much
+BIAS_DEAD = 0.0   # no penalty for D in normal play (other-match choice)
 
 FORBID = -1e4    # log-score that rules a state out completely
 
 
-def emissions(control, out_of_play, restart, has_home, has_away, forced_dead=None):
+def emissions(control, out_of_play, restart, has_home, has_away, forced_dead=None,
+              w_control=W_CONTROL, w_tag=W_TAG, w_out=W_OUT, w_restart=W_RESTART, bias=BIAS_DEAD):
     """(n, 3) log-scores for H, A, D."""
     n = len(control)
     c = np.nan_to_num(control, nan=0.0)
     ll = np.zeros((n, 3), dtype=np.float64)
-    ll[:, H] = W_CONTROL * c + W_TAG * has_home
-    ll[:, A] = -W_CONTROL * c + W_TAG * has_away
-    ll[:, D] = -BIAS_DEAD + W_OUT * out_of_play + W_RESTART * restart
+    ll[:, H] = w_control * c + w_tag * has_home
+    ll[:, A] = -w_control * c + w_tag * has_away
+    ll[:, D] = -bias + w_out * out_of_play + w_restart * restart
     if forced_dead is not None:
         ll[forced_dead, H] = FORBID
         ll[forced_dead, A] = FORBID

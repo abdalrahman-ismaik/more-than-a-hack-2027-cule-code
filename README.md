@@ -106,12 +106,14 @@ python challenge\evaluation\validate_submission.py submissions\CuleCode_v1.csv
 | `src/decode.py` | 3-state Viterbi (H, A, D) with sticky transitions and documented weights |
 | `src/pipeline.py` | End to end: writes the `frame,label` CSV and prints possession counts |
 
-### v1 status (2026-11-15)
+### Status (2026-11-15)
 
-- Full match runs in about a minute and gives 274 possessions, mean 16.1 s, with `X` only outside the graded halves.
-- Passes the official validator.
-- Public 5-minute window: macroF1 0.6338, spellF1 0.3067. That window has 17 possessions, so this is a pipeline check only, not a ranking.
-- Next: validate on the Metrica sample matches (other games, allowed) to choose the weights, not on the public window.
+- **v1** (`submissions/CuleCode_v1.csv`): 274 possessions, mean 16.1 s. Passes the validator.
+- **v1.1** (`submissions/CuleCode_v1_1.csv`, current defaults): 186 possessions, mean 22.9 s. Passes the validator.
+- Public 5-minute window (17 possessions, a pipeline check only, not a ranking): v1 spellF1 0.3067, macroF1 0.6338; v1.1 spellF1 0.2857, macroF1 0.6330.
+- **Weights chosen on other matches.** `src/sweep_metrica.py` searches 243 settings on Metrica sample game 1, checks the best on game 2, and ranks by the average over both. Current defaults: game 1 spellF1 0.406, macroF1 0.571; game 2 spellF1 0.416, macroF1 0.568. The top settings are within 0.005 of each other, so the choice is not sensitive.
+- **Open caveat:** on the Metrica games the decoder gives 230 to 250 possessions, against about 300 in the event-derived proxy. The proxy may overcount, since it is built from noisy event data. Confirm before tuning the transition rates further.
+- **Validation labels are a proxy** (`src/metrica_val.py`), derived from the event log. They compare settings with each other. They are not a score to report as official.
 
 ### HPC (KU H100 teaching server)
 
@@ -227,7 +229,7 @@ Five members. Each person owns one area, with one clear deliverable and a comple
 | T-07 | Viterbi decoder with sticky transitions | B | High | Done (v1) | Nov 16 | `src/decode.py`; weights to be checked on other matches |
 | T-08 | Restart and tag rules | D | High | Done (v1) | Nov 16 | `src/tags.py`; throw-in and `N/A` handling still open |
 | T-09 | Full-match submission generated and validated | B + C + D | High | Done (v1) | Nov 16 | `submissions/CuleCode_v1.csv` |
-| T-13 | Metrica sample matches as a validation set (other games) | C + D | High | Not started | Nov 16 | Choose weights here, not on the public window |
+| T-13 | Metrica sample matches as a validation set (other games) | C + D | High | Done (proxy) | Nov 16 | `src/metrica_val.py`, `src/sweep_metrica.py`; labels are an event-derived proxy |
 | T-14 | Git repo: first commit, add members, push | E | High | In progress | Nov 15 | Local repo created; remote not yet set |
 | T-15 | HPC access checked, CPU partition name confirmed | A | Medium | Not started | Nov 16 | `hpc/run_pipeline.sbatch` template ready |
 | T-10 | Technical document drafted | E | High | Not started | Nov 17 | Required deliverable |
