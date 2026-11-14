@@ -1,0 +1,31 @@
+# Restricted match data: never commit or redistribute
+data/
+*.mp4
+*.mov
+*.avi
+*.txt.gz
+
+# Cloned reused repos and external datasets
+external/
+
+# Generated outputs
+submissions/*.csv
+challenge/evaluation/results/*.csv
+!challenge/evaluation/results/baseline_*.csv
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.ipynb_checkpoints/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Official challenge clone (own git repo) and organiser data: never commit
+challenge/
+Initial Challenge/
+
