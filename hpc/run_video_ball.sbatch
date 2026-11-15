@@ -21,9 +21,14 @@ mkdir -p results
 . /etc/profile.d/conda.sh
 conda activate /data/shared_envs/gpu_pytorch
 
-# Install ultralytics only if the shared environment lacks it. Installing torch again would
-# replace the server's CUDA build, so do not force a reinstall.
-python -c "import ultralytics" 2>/dev/null || python -m pip install --user -q ultralytics
+# Install ultralytics and pandas only if the shared environment lacks them. Installing torch again
+# would replace the server's CUDA build, so do not force a reinstall.
+python -c "import ultralytics, pandas" 2>/dev/null || python -m pip install --user -q ultralytics pandas
+python -c "import ultralytics, pandas" || { echo "ultralytics/pandas missing: install failed"; exit 1; }
+
+# Fail fast if the job did not get a GPU, instead of running for hours on the CPU.
+python -c "import torch, sys; sys.exit(0 if torch.cuda.is_available() else 1)" \
+  || { echo "CUDA is not available in this job"; exit 1; }
 
 export MTAH_DATA_DIR="${MTAH_DATA_DIR:-$HOME/mtah_data}"
 
