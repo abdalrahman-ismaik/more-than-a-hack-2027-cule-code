@@ -11,20 +11,40 @@ import os
 from itertools import groupby
 
 import numpy as np
+import pandas as pd
 
 from src import atd, config, decode, features, tags
 
 LABELS = np.array(["H", "A", "D"])
 
 
-def build_labels(n_frames=config.N_FRAMES, verbose=True):
+def fill_ball_from_video(ball, detection_files):
+    """Use the video detections where the tracking ball is missing. Tracking is kept where present."""
+    filled = ball.copy()
+    for path in detection_files:
+        table = pd.read_csv(path)
+        frames = table["frame"].to_numpy()
+        found = table["det_x"].notna().to_numpy()
+        gap = found & ~np.isfinite(filled[frames, 0])
+        rows = frames[gap]
+        filled[rows, 0] = table["det_x"].to_numpy()[gap]
+        filled[rows, 1] = table["det_y"].to_numpy()[gap]
+    return filled
+
+
+def build_labels(n_frames=config.N_FRAMES, verbose=True, video_ball=None):
     slot_team = atd.slot_teams(config.ATD_META)
     if verbose:
         print("loading tracking ...")
     xy, ball = atd.load(config.ATD_RAW, n_frames, len(slot_team))
     if verbose:
         visible = np.isfinite(ball[:, 0]).mean() * 100
-        print("  ball visible on {:.1f}% of frames".format(visible))
+        print("  ball visible on {:.1f}% of frames (tracking)".format(visible))
+    if video_ball:
+        ball = fill_ball_from_video(ball, video_ball)
+        if verbose:
+            visible = np.isfinite(ball[:, 0]).mean() * 100
+            print("  ball visible on {:.1f}% of frames (with video detections)".format(visible))
 
     control, out_of_play = features.control_evidence(xy, ball, slot_team)
     restart, has_home, has_away = tags.frame_evidence(
@@ -71,9 +91,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--name", default="CuleCode_v1", help="output file name, without .csv")
     parser.add_argument("--out-dir", default=config.SUBMISSIONS_DIR)
+    parser.add_argument("--video-ball", nargs="*", default=None,
+                        help="video detection CSVs to fill gaps in the tracking ball")
     args = parser.parse_args()
 
-    labels = build_labels()
+    labels = build_labels(video_ball=args.video_ball)
     summary = possession_summary(labels)
     print("\nlabels over graded frames: H {H}  A {A}  D {D}".format(**summary))
     print("possessions: {possessions}  mean {mean_possession_s:.1f} s".format(**summary))
