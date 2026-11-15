@@ -42,6 +42,7 @@ We do **not** train a model in v1 or v1.2. Every parameter is a documented const
 |---|---|---|---|---|
 | YOLO11n football ball detector (`martinjolif/yolo-football-ball-detection`) | Hugging Face, fine-tuned on `martinjolif/football-ball-detection` | Human-labelled ball boxes on football images (dataset provided by its authors; labelling process is theirs to document) | AGPL-3.0 | Candidate v1.2 only |
 | Metrica Sample Game 1 and 2 (`metrica-sports/sample-data`) | Metrica Sports, public sample data | Possession proxy derived from the event log (our derivation, see section 4) | Check the `LICENSE` file before submission | Choosing decoder weights (other matches) |
+| SkillCorner Open Data (`SkillCorner/opendata`, 20 A-League matches 2024/25) | GitHub, MIT licence | Official frame-level possession labels from the published phases-of-play spans; tracking at 10 fps with the ball | MIT | Validating and selecting decoder weights (other matches) |
 
 **TODO:** record the licence of the Metrica sample data, and confirm with the organisers that the AGPL-3.0 detector can be used and described in a public repository.
 
@@ -63,6 +64,8 @@ Forced rules:
 - Each graded half is decoded separately. Everything else is `X`.
 
 **Weight selection.** `src/sweep_metrica.py` searched 243 settings on Metrica Sample Game 1 and checked the best on Game 2. The scores are event-derived proxy labels, so they compare settings with each other and are not a score we report. The top settings are within 0.005 spellF1 of each other, so the choice is not sensitive. The current defaults give, on Game 1 and Game 2 respectively, spellF1 0.406 and 0.416, and macroF1 0.571 and 0.568.
+
+A second, stronger validation set is the SkillCorner open data (20 other matches, official possession labels): `src/skillcorner_val.py` converts the 10 fps tracking to our format, takes H/A/D from the published phases-of-play spans, and scores with the official scorer (transition rates scaled 25 → 10 fps). With the current defaults the decoder scores mean spellF1 0.402 and macroF1 0.682. A sweep selects settings on 10 matches and checks them on the other 10; results are recorded in the README.
 
 **Possession rule choices** (where the line is drawn):
 
@@ -89,14 +92,14 @@ Video detection quality (full match):
 ## 6. Limitations
 
 - **No validated score for v1.2.** There is no way to measure its effect on spellF1 before submission except the public window, which we do not use for choosing.
-- **Possession count.** On the Metrica games the decoder gives 230 to 250 possessions, against about 300 in the event-derived proxy. The proxy may overcount, so this is not settled.
+- **Possession count.** Resolved by the SkillCorner labels: the decoder predicts ~164 possessions per match against ~255 in the ground truth (range 204–306). Predicted spells are too long (median 18 s vs 7.4 s) and dead-ball frames are under-predicted. The Metrica proxy was not overcounting.
 - **Ball detection noise.** The detector fires on players' feet and the crowd. The pitch filter removes most false positives, but not all.
 - **Tracking is uncorrected.** Identity switches and fragmented tracks feed directly into the control evidence.
 - **Smart Tagging is inferred**, so its restarts and team tags can be wrong.
 - **No learned model.** The stretch goal (a PathCRF-style learned model) was not built.
 - **Metrica proxy labels** are derived from events and are approximate.
 
-**What we would fix with more time:** validate the decoder on a second source with ground truth; add ball speed and per-team control counts; infer throw-in teams; tune the transition rates against possession counts on other matches.
+**What we would fix with more time:** add ball speed and per-team control counts; infer throw-in teams; shorten the decoder's transitions per the SkillCorner finding (spells too long, dead time missed).
 
 ## 7. Reproduction
 
