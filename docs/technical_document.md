@@ -115,7 +115,7 @@ python -m src.pipeline --name CuleCode_v1_1
 python challenge\evaluation\validate_submission.py submissions\CuleCode_v1_1.csv
 ```
 
-Video detection (optional, about 2 hours on an RTX 2060 in FP16, about 16 minutes on one H100 NVL):
+Video detection (optional; about 16 minutes on one H100 NVL, measured; the RTX 2060 run took longer, time not recorded):
 
 ```powershell
 python -m src.video_ball --start 11185 --stop 90652 --device 0 --out results\video_ball_h1.csv
