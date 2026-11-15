@@ -14,14 +14,16 @@
 #SBATCH --mem=32G
 #SBATCH --time=03:00:00
 #SBATCH --output=logs/%x-%j.out
+# logs/ must exist BEFORE sbatch is run (Slurm opens the output file first). Run: mkdir -p logs results
 
-mkdir -p logs results
+mkdir -p results
 
 . /etc/profile.d/conda.sh
 conda activate /data/shared_envs/gpu_pytorch
 
-# ultralytics is not in the shared environment by default; install it into your own user site.
-python -m pip install --user -q ultralytics pandas
+# Install ultralytics only if the shared environment lacks it. Installing torch again would
+# replace the server's CUDA build, so do not force a reinstall.
+python -c "import ultralytics" 2>/dev/null || python -m pip install --user -q ultralytics
 
 export MTAH_DATA_DIR="${MTAH_DATA_DIR:-$HOME/mtah_data}"
 
