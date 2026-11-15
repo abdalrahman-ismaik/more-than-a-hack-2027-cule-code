@@ -17,6 +17,18 @@ from src import atd, config, decode, features, tags
 
 LABELS = np.array(["H", "A", "D"])
 
+# Decoder settings, all chosen on other matches. "skillcorner" is the optimum of the sweep on
+# 10 SkillCorner A-League matches (official possession labels), checked on the other 10
+# (spellF1 0.4118 vs 0.3928 for default). Rates are the 25 fps equivalents; skillcorner_val
+# scales them for its 10 fps data.
+PRESETS = {
+    "default": {},
+    "skillcorner": {
+        "weights": {"w_control": 1.0, "bias": 0.0},
+        "transitions": {"p_team_to_dead": 0.016, "p_switch": 0.001, "p_dead_to_team": 0.004},
+    },
+}
+
 
 def fill_ball_from_video(ball, detection_files):
     """Use the video detections where the tracking ball is missing. Tracking is kept where present."""
@@ -32,7 +44,8 @@ def fill_ball_from_video(ball, detection_files):
     return filled
 
 
-def build_labels(n_frames=config.N_FRAMES, verbose=True, video_ball=None):
+def build_labels(n_frames=config.N_FRAMES, verbose=True, video_ball=None, params=None):
+    params = params or {}
     slot_team = atd.slot_teams(config.ATD_META)
     if verbose:
         print("loading tracking ...")
@@ -58,8 +71,10 @@ def build_labels(n_frames=config.N_FRAMES, verbose=True, video_ball=None):
         if lo <= k_lo <= hi:
             forced[k_lo - lo: k_hi - lo + 1] = True
         ll = decode.emissions(control[span], out_of_play[span], restart[span],
-                              has_home[span], has_away[span], forced_dead=forced)
-        path = decode.viterbi(ll)
+                              has_home[span], has_away[span], forced_dead=forced,
+                              **params.get("weights", {}))
+        transitions = decode.make_transitions(**params.get("transitions", {}))
+        path = decode.viterbi(ll, transitions)
         labels[span] = LABELS[path]
         if verbose:
             print("  decoded frames {}..{}".format(lo, hi))
@@ -93,9 +108,11 @@ if __name__ == "__main__":
     parser.add_argument("--out-dir", default=config.SUBMISSIONS_DIR)
     parser.add_argument("--video-ball", nargs="*", default=None,
                         help="video detection CSVs to fill gaps in the tracking ball")
+    parser.add_argument("--preset", default="default", choices=sorted(PRESETS),
+                        help="decoder settings chosen on other matches")
     args = parser.parse_args()
 
-    labels = build_labels(video_ball=args.video_ball)
+    labels = build_labels(video_ball=args.video_ball, params=PRESETS[args.preset])
     summary = possession_summary(labels)
     print("\nlabels over graded frames: H {H}  A {A}  D {D}".format(**summary))
     print("possessions: {possessions}  mean {mean_possession_s:.1f} s".format(**summary))

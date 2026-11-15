@@ -114,16 +114,20 @@ Candidate v1.2 (video ball fills gaps in the tracking ball):
 
 ```powershell
 python -m src.pipeline --name CuleCode_v1_2_video --video-ball results\hpc_video_ball_h1.csv results\hpc_video_ball_h2.csv
+python -m src.pipeline --name CuleCode_v1_3_skillcorner --preset skillcorner
 ```
 
 ### Status (2026-11-15)
 
 - **v1** (`submissions/CuleCode_v1.csv`): 274 possessions, mean 16.1 s. Passes the validator.
-- **v1.1** (`submissions/CuleCode_v1_1.csv`, current defaults): 186 possessions, mean 22.9 s. Passes the validator.
-- **v1.2 candidate** (`submissions/CuleCode_v1_2_video.csv`): 251 possessions, mean 16.8 s. Passes the validator. Not chosen yet (see below).
+- **v1.1** (`submissions/CuleCode_v1_1.csv`, old defaults): 186 possessions, mean 22.9 s. Passes the validator.
+- **v1.2 candidate** (`submissions/CuleCode_v1_2_video.csv`): 251 possessions, mean 16.8 s. Video ball fills tracking gaps, old default weights.
+- **v1.3 candidate** (`submissions/CuleCode_v1_3_skillcorner.csv`): 281 possessions, mean 13.0 s. New `skillcorner` preset, tracking only. Best match to official ground-truth statistics (mean spell 13.9 s, ~255 possessions on the SkillCorner matches).
+- **v1.3+video candidate** (`submissions/CuleCode_v1_3_video.csv`): 369 possessions, mean 11.3 s. Both improvements combined; the video detections may over-segment (369 is above the 204–306 ground-truth range).
 - Public 5-minute window (17 possessions, a pipeline check only, not a ranking): v1 spellF1 0.3067, macroF1 0.6338; v1.1 spellF1 0.2857, macroF1 0.6330.
 - **Weights chosen on other matches.** `src/sweep_metrica.py` searches 243 settings on Metrica sample game 1, checks the best on game 2, and ranks by the average over both. Current defaults: game 1 spellF1 0.406, macroF1 0.571; game 2 spellF1 0.416, macroF1 0.568. The top settings are within 0.005 of each other, so the choice is not sensitive.
-- **SkillCorner validation (official labels, 20 other matches).** `src/skillcorner_val.py` builds H/A/D ground truth from the published phases-of-play spans and scores with the official scorer. Current defaults: mean spellF1 0.402, macroF1 0.682. Ground truth has ~255 possessions per match (range 204–306); the decoder predicts ~164, so it consistently under-segments. Predicted spells are too long (median 18 s vs 7.4 s in the ground truth), and dead-ball frames are under-predicted. A sweep with a wider transition-rate grid is running; results to be recorded here.
+- **SkillCorner validation (official labels, 20 other matches).** `src/skillcorner_val.py` builds H/A/D ground truth from the published phases-of-play spans and scores with the official scorer. Default weights: mean spellF1 0.402, macroF1 0.682. Ground truth has ~255 possessions per match (range 204–306); the decoder predicted ~164, spells too long (median 18 s vs 7.4 s) and too little dead time.
+- **New preset `skillcorner` (chosen on other matches, checked on held-out matches).** Sweep on 10 SkillCorner matches, checked on the other 10: spellF1 0.4118 vs 0.3928 for the old defaults, macroF1 0.7347 vs 0.6802. It also improves the Metrica games (game 1 0.4212 vs 0.406, game 2 0.4723 vs 0.416). Settings: `w_control` 1.0, `p_team_to_dead` 0.016, `p_switch` 0.001, `p_dead_to_team` 0.004 (`--preset skillcorner`).
 - **Open caveat:** on the Metrica games the decoder gives 230 to 250 possessions, against about 300 in the event-derived proxy. The proxy may overcount, since it is built from noisy event data. Confirm before tuning the transition rates further.
 - **Resolved (2026-11-15):** the undercount is real. On the SkillCorner matches the decoder predicts ~164 possessions against ~255 in official labels. The challenge match likely has around 250 possessions too; candidate v1.2 (251) is close to that count, v1.1 (186) is not.
 - **Validation labels are a proxy** (`src/metrica_val.py`), derived from the event log. They compare settings with each other. They are not a score to report as official.

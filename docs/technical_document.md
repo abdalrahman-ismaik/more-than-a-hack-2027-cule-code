@@ -52,9 +52,9 @@ None of the training or tuning data comes from the provided match.
 
 Emissions (log scores for H, A, D):
 
-- `H`: `W_CONTROL × control + W_TAG × (home phase tag)`; current `W_CONTROL = 0.5`, `W_TAG = 0.5`.
+- `H`: `W_CONTROL × control + W_TAG × (home phase tag)`; the submitted candidate uses `W_CONTROL = 1.0`, `W_TAG = 0.5` (`--preset skillcorner`).
 - `A`: the mirror of `H` for control, plus the away tag.
-- `D`: `W_OUT × (ball out of pitch) + W_RESTART × (SET PIECES) − BIAS_DEAD`; current `W_OUT = 3.0`, `W_RESTART = 3.0`, `BIAS_DEAD = 0.0`.
+- `D`: `W_OUT × (ball out of pitch) + W_RESTART × (SET PIECES) − BIAS_DEAD`; current `W_OUT = 3.0`, `W_RESTART = 3.0`, `BIAS_DEAD = 0.0`. Transition rates in the submitted candidate: `p_team_to_dead = 0.016`, `p_switch = 0.001`, `p_dead_to_team = 0.004` per 25 fps frame.
 
 When the ball is missing and there is no restart, `H` and `A` tie, so the decoder keeps the previous team. This is the behaviour the metric rewards.
 
@@ -79,8 +79,12 @@ A second, stronger validation set is the SkillCorner open data (20 other matches
 | Version | Possessions (full match) | Mean length | Notes |
 |---|---|---|---|
 | v1 | 274 | 16.1 s | Earlier defaults |
-| v1.1 (current defaults) | 186 | 22.9 s | Weights chosen on other matches |
+| v1.1 (old defaults) | 186 | 22.9 s | Weights chosen on Metrica only |
 | v1.2 candidate (video fills tracking gaps) | 251 | 16.8 s | Video detections where tracking is missing |
+| v1.3 candidate (`skillcorner` preset, tracking only) | 281 | 13.0 s | Weights chosen and checked on SkillCorner official labels |
+| v1.3 + video candidate | 369 | 11.3 s | Both combined; possibly over-segmented |
+
+Validation of the `skillcorner` preset (other matches only): on the 10 held-out SkillCorner matches spellF1 0.4118 vs 0.3928 for the old defaults (macroF1 0.7347 vs 0.6802); on the Metrica games spellF1 0.4212/0.4723 vs 0.406/0.416. Official SkillCorner ground truth: ~255 possessions per match, mean spell 13.9 s; v1.3 produces 281 possessions at 13.0 s mean.
 
 Public 5-minute window (a pipeline check only, 17 possessions): v1 spellF1 0.3067 and v1.1 0.2857. These are not used to choose between versions.
 
@@ -111,11 +115,11 @@ git clone https://github.com/metrica-sports/more-than-a-hack-2027 challenge   # 
 $env:MTAH_DATA_DIR = "<folder containing tactical/ and broadcast/>"
 ```
 
-Tracking-only submission (v1.1):
+Tracking-only submission (v1.3, the `skillcorner` preset chosen on other matches):
 
 ```powershell
-python -m src.pipeline --name CuleCode_v1_1
-python challenge\evaluation\validate_submission.py submissions\CuleCode_v1_1.csv
+python -m src.pipeline --name CuleCode_v1_3_skillcorner --preset skillcorner
+python challenge\evaluation\validate_submission.py submissions\CuleCode_v1_3_skillcorner.csv
 ```
 
 Video detection (optional; about 16 minutes on one H100 NVL, measured; the RTX 2060 run took longer, time not recorded):
