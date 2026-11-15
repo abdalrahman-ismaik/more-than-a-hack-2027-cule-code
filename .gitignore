@@ -29,3 +29,9 @@ Thumbs.db
 challenge/
 Initial Challenge/
 
+
+# Detector weights (AGPL-3.0, not redistributed) and local test outputs
+models/
+data_test/
+results/
+
