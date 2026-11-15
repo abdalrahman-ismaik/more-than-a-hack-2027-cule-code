@@ -26,6 +26,7 @@ VIDEO = os.path.join(TACTICAL_DIR, "BAR-ATH_tactical.mp4")
 HOMOGRAPHY = os.path.join(TACTICAL_DIR, "BAR-ATH_tactical_homography.csv")
 CONF = 0.1
 IMGSZ = 1280
+FP16 = True  # half precision on GPU; ignored on CPU by Ultralytics
 PITCH_MARGIN = 0.02  # accept detections up to 2% of the pitch outside the lines
 
 
@@ -71,7 +72,7 @@ def detect_range(start, stop, device=None, out=None, batch=8):
         if not frames:
             break
         results = model.predict(frames, conf=CONF, imgsz=IMGSZ, verbose=False,
-                                device=device, classes=[0])
+                                device=device, classes=[0], half=FP16)
         for index, result in zip(ids, results):
             rows.append(_best_on_pitch(index, result, H, valid))
 

@@ -28,4 +28,6 @@ python -c "import ultralytics" 2>/dev/null || python -m pip install --user -q ul
 export MTAH_DATA_DIR="${MTAH_DATA_DIR:-$HOME/mtah_data}"
 
 nvidia-smi
-python -m src.video_ball --device 0 --out results/video_ball_full.csv
+# Graded halves only (DATA.md). Ungraded frames are never scored, so they are skipped.
+python -m src.video_ball --start 11185 --stop 90652 --device 0 --out results/video_ball_h1.csv
+python -m src.video_ball --start 110808 --stop 190198 --device 0 --out results/video_ball_h2.csv
