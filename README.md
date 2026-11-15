@@ -114,6 +114,7 @@ python challenge\evaluation\validate_submission.py submissions\CuleCode_v1.csv
 - **Weights chosen on other matches.** `src/sweep_metrica.py` searches 243 settings on Metrica sample game 1, checks the best on game 2, and ranks by the average over both. Current defaults: game 1 spellF1 0.406, macroF1 0.571; game 2 spellF1 0.416, macroF1 0.568. The top settings are within 0.005 of each other, so the choice is not sensitive.
 - **Open caveat:** on the Metrica games the decoder gives 230 to 250 possessions, against about 300 in the event-derived proxy. The proxy may overcount, since it is built from noisy event data. Confirm before tuning the transition rates further.
 - **Validation labels are a proxy** (`src/metrica_val.py`), derived from the event log. They compare settings with each other. They are not a score to report as official.
+- **Video ball detection** (`src/video_ball.py`, optional): a YOLO11n detector on the tactical video, mapped to the pitch with the homography. On the first 300 frames of the first half, 64% of frames get a pitch detection. Where the tracking ball is also visible, the detection is within 6 m on 54% of frames (median 3.9 m, against about 35 m for random points). That confirms the homography direction and shows real signal, but it is noisy. It is **not** in the submission yet: there is no validation signal for it. The full-match run is `hpc/run_video_ball.sbatch`, on one GPU.
 
 ### HPC (KU H100 teaching server)
 
@@ -183,6 +184,8 @@ We don't start from zero. These repos are cloned into `external/` (git-ignored, 
 | [`metrica-sports/sample-data`](https://github.com/metrica-sports/sample-data) (in `external/metrica-sample-data`) | Two other matches with ball tracking and events, for validation | Check `LICENSE` terms before use | Other-match data, so allowed. Document it. |
 | [`PySport/kloppy`](https://github.com/PySport/kloppy) (pip) | Loaders for Metrica and Sportec formats | BSD-3 | Reads tracking and event data. |
 | [`lRomul/ball-action-spotting`](https://github.com/lRomul/ball-action-spotting) | Reference only: 1st place SoccerNet 2023, video-based | MIT | Video ball detection. Not needed for v1. |
+| [`roboflow/sports`](https://github.com/roboflow/sports) | Reference: closest eligible player to the ball, pitch projection | MIT | Same idea as our control evidence. Code only; its weights come from Roboflow. |
+| [`martinjolif/yolo-football-ball-detection`](https://huggingface.co/martinjolif/yolo-football-ball-detection) (in `models/`) | Ball detector on the tactical video (YOLO11n) | **AGPL-3.0** | Used by `src/video_ball.py`. Not committed. The AGPL licence needs a decision before it goes in a public repo. |
 
 Literature used for design: tracking-data possession and HMM-based state segmentation are well established; PathCRF (arXiv 2602.12080) is the closest recent work to our exact setting.
 
