@@ -4,7 +4,7 @@
 
 > **Team name:** CuléCode (file names use `CuleCode`)  
 > **Team lead / contact:** _Add name and preferred contact_  
-> **Last updated:** 2026-11-15
+> **Last updated:** 2026-11-15 (video detection complete; candidate v1.2 built)
 
 Use this README as the team's shared dashboard. Update the roster, status, tasks, decisions, and file index as work progresses. The detailed event summary and setup guidance is in [MORE_THAN_A_HACK_2027.md](MORE_THAN_A_HACK_2027.md).
 
@@ -65,7 +65,8 @@ The first challenge asks teams to estimate team possession for every frame using
 | `BAR-ATH_broadcast_homography.csv` | Have |
 | `BAR-ATH_tactical_atd.txt` | Have (186 MB) |
 | `BAR-ATH_broadcast_atd.txt` | Have (135 MB) |
-| `BAR-ATH_tactical.mp4`, `BAR-ATH_broadcast.mp4` | Not in the folder yet. Not needed for the core plan. |
+| `BAR-ATH_tactical.mp4` | Have (4.98 GB). Used for video ball detection. |
+| `BAR-ATH_broadcast.mp4` | Have (13.3 GB). Not used yet (not frame-aligned to the tactical video). |
 
 The files are in `Initial Challenge/` (not `data/`). Point the code at that folder with `MTAH_DATA_DIR`:
 
@@ -105,27 +106,44 @@ python challenge\evaluation\validate_submission.py submissions\CuleCode_v1.csv
 | `src/features.py` | Control evidence (nearest home vs away player, in metres) and ball out of play |
 | `src/decode.py` | 3-state Viterbi (H, A, D) with sticky transitions and documented weights |
 | `src/pipeline.py` | End to end: writes the `frame,label` CSV and prints possession counts |
+| `src/video_ball.py` | Optional: YOLO11n ball detection on the tactical video, mapped to the pitch |
+| `src/metrica_val.py`, `src/sweep_metrica.py` | Validation and weight selection on the Metrica sample games (other matches) |
+
+Candidate v1.2 (video ball fills gaps in the tracking ball):
+
+```powershell
+python -m src.pipeline --name CuleCode_v1_2_video --video-ball results\hpc_video_ball_h1.csv results\hpc_video_ball_h2.csv
+```
 
 ### Status (2026-11-15)
 
 - **v1** (`submissions/CuleCode_v1.csv`): 274 possessions, mean 16.1 s. Passes the validator.
 - **v1.1** (`submissions/CuleCode_v1_1.csv`, current defaults): 186 possessions, mean 22.9 s. Passes the validator.
+- **v1.2 candidate** (`submissions/CuleCode_v1_2_video.csv`): 251 possessions, mean 16.8 s. Passes the validator. Not chosen yet (see below).
 - Public 5-minute window (17 possessions, a pipeline check only, not a ranking): v1 spellF1 0.3067, macroF1 0.6338; v1.1 spellF1 0.2857, macroF1 0.6330.
 - **Weights chosen on other matches.** `src/sweep_metrica.py` searches 243 settings on Metrica sample game 1, checks the best on game 2, and ranks by the average over both. Current defaults: game 1 spellF1 0.406, macroF1 0.571; game 2 spellF1 0.416, macroF1 0.568. The top settings are within 0.005 of each other, so the choice is not sensitive.
 - **Open caveat:** on the Metrica games the decoder gives 230 to 250 possessions, against about 300 in the event-derived proxy. The proxy may overcount, since it is built from noisy event data. Confirm before tuning the transition rates further.
 - **Validation labels are a proxy** (`src/metrica_val.py`), derived from the event log. They compare settings with each other. They are not a score to report as official.
 - **Full-match video detection (done, 2026-11-15).** Run on the HPC (job 665, one H100 NVL, 16 minutes) and on the laptop RTX 2060. Both graded halves, 158,857 rows, match the graded frames. The two runs agree to within 1 m on 99.4% of frames where both detect the ball. Coverage: detections exist on 63.4% of graded frames, and on 17.6% of graded frames where the tracking ball is missing. Where both sources see the ball, they agree within 6 m on 82% of frames (median 1.0 m).
 - **Candidate v1.2** (`src/pipeline.py --video-ball`): uses the video detections only where the tracking ball is missing. Full match: 251 possessions, mean 16.8 s (v1.1: 186, 22.9 s). Passes the validator. Not yet chosen for submission: there is no validation signal for its effect on score, and the AGPL-3.0 licence of the detector must be settled before the repo becomes public.
-- **Video ball detection** (`src/video_ball.py`, optional): a YOLO11n detector on the tactical video, mapped to the pitch with the homography. On the first 300 frames of the first half, 64% of frames get a pitch detection. Where the tracking ball is also visible, the detection is within 6 m on 54% of frames (median 3.9 m, against about 35 m for random points). That confirms the homography direction and shows real signal, but it is noisy. It is **not** in the submission yet: there is no validation signal for it. The full-match run is `hpc/run_video_ball.sbatch`, on one GPU.
+- **Video detector check on 300 frames** (earlier, before the full run): 64% of frames had a pitch detection. The full-match numbers above supersede it.
 
 ### HPC (KU H100 teaching server)
 
-- Access: PuTTY, host `10.11.45.11`, port 22, SSH. Use KU VPN off campus. Use only your own credentials.
-- Shared environment: `conda activate /data/shared_envs/gpu_pytorch`. Use it in job scripts, not your own installs.
+- Access: PuTTY or `ssh`, host `10.11.45.11`, port 22. Use KU VPN off campus. Use only your own credentials.
+- Shared environment: `conda activate /data/shared_envs/gpu_pytorch`. Install `ultralytics` and `pandas` with `pip install --user` if missing (torch is already there; do not reinstall it).
 - Limits for students: `gpu-debug` (1 GPU, up to 1 hour) for short tests, `gpu-student` (1 to 2 GPUs, up to 6 hours) for project jobs. No `gpu-long`.
 - Run jobs with `sbatch` (or `srun` for short interactive tests). Never run heavy work in the login shell.
-- Template: `hpc/run_pipeline.sbatch`. Fill in the CPU partition name (ask the admins). Output goes to `logs/`.
-- Before uploading match data to the server, confirm with the organisers that this is permitted under the data terms.
+- Video detection job: `hpc/run_video_ball.sbatch`. It checks for a GPU before starting. Create `logs/` and `results/` first, then run `sbatch hpc/run_video_ball.sbatch`.
+- Do **not** submit `hpc/run_pipeline.sbatch` yet: it still has the placeholder partition `CPU_PARTITION_NAME`. The pipeline runs in about a minute on a laptop and does not need the server.
+- Before uploading match data to the server, the data terms must allow it. Confirmed for this team on 2026-11-15.
+
+Run record (2026-11-15):
+- Job 665 on `gpu-student`, one H100 NVL, 15 min 56 s wall time, exit code 0.
+- Output: `results/video_ball_h1.csv` (79,467 frames, 62.9% with a pitch detection) and `results/video_ball_h2.csv` (79,390 frames, 64.0%).
+- Downloaded locally as `results/hpc_video_ball_h1.csv` and `results/hpc_video_ball_h2.csv` (not in git).
+
+Local run on an RTX 2060 (6 GB), FP16, gives the same results: agreement within 1 m on 99.4% of frames where both detect the ball.
 
 ## Proposed plan
 
@@ -141,11 +159,12 @@ Homography (valid flag, quality)               │
 ```
 
 **Stage 1 — Per-frame features (`src/features.py`)**
-- Ball visible, ball speed, distance from ball to each team's nearest player
-- Number of players per team within a control radius (about 3 m, in metres using 105.3 × 68.0)
-- Team in control: which team has more players close to the ball, with a margin
-- Restart signal from Smart Tagging (Throw-in, Corner, Goal Kick, Free Kick, Kick Off)
-- Homography `valid` flag, to down-weight unreliable frames
+- Control evidence: gap between the nearest home and nearest away player to the ball, in metres (clipped to ±10 m)
+- Ball outside the pitch rectangle (dead ball)
+- Optional: ball position from the video detector where the tracking ball is missing (`--video-ball`)
+- Restart signal and team phases from Smart Tagging (`src/tags.py`: SET PIECES = dead ball; offensive/defensive phases give a team nudge)
+
+Not yet used: ball speed, per-team control-radius counts, homography `valid` flag.
 
 **Stage 2 — Sequence decoder (`src/decode.py`)**
 - Three hidden states: H, A, D. Viterbi (or forward-backward HMM) over the whole half.
@@ -153,13 +172,13 @@ Homography (valid flag, quality)               │
 - Emission from the team-in-control evidence. Dead-ball emission from missing ball plus restart evidence.
 - Output is one label per frame, so the decoder never needs `X`.
 
-**Stage 3 — Possession rules (`src/rules.py`)**
-- Keep the last team through loose-ball and occluded periods.
-- After a restart, give the team from the Smart Tagging team tag. If the tag is `N/A` (throw-ins), infer from which side is closest to the ball.
-- Force `D` from a restart until the ball moves again.
-- Kickoff-wait frames in the second half (110,808 to 113,741) are `D`.
+**Stage 3 — Possession rules (in `src/decode.py` and `src/pipeline.py`)**
+- Keep the last team through loose-ball and occluded periods (H and A are tied when the ball is missing, so the decoder keeps the previous team).
+- Restarts (SET PIECES) push the decoder towards D. Team tags from Smart Tagging nudge H or A. Throw-ins tagged `N/A` get no team nudge yet.
+- Kickoff-wait frames in the second half (110,808 to 113,741) are forced to `D`.
+- Graded halves are decoded separately; everything outside them is `X`.
 
-**Stage 4 — Validation and submission (`src/make_submission.py`)**
+**Stage 4 — Validation and submission (`src/pipeline.py`, `challenge/evaluation/validate_submission.py`)**
 - `evaluation/validate_submission.py` on the exact file we upload.
 - Check possession counts look plausible, not thousands of tiny possessions.
 - Public 5 minutes: alignment and format only.
@@ -214,7 +233,7 @@ Five members. Each person owns one area, with one clear deliverable and a comple
 
 | When | Milestone | Owner |
 |---|---|---|
-| **Nov 15 (today)** | Data complete in `data/`; baseline runs; insurance submission validated | A (lead), E (repo created) |
+| **Nov 15** (done) | Data complete; baseline and insurance submission; v1 and v1.1 pipeline; Metrica validation; full-match video detection; candidate v1.2; repo pushed | A, B, C, D, E |
 | **Nov 16, midday** | Features (C) and decoder (B) run on the full match; rules (D) plugged in | B, C, D |
 | **Nov 16, evening** | First full submission generated and validated; stretch decision made | Everyone |
 | **Nov 17, morning** | Freeze the method. Regenerate from clean clone, validate, check counts | E (lead), A |
@@ -228,16 +247,19 @@ Five members. Each person owns one area, with one clear deliverable and a comple
 | T-01 | Confirm roster and team registration | Team lead | High | Done | Nov 10 | Osama accepted (Nov 15) |
 | T-02 | Get `BAR-ATH_tactical_atd.txt` and the rest of the data | A | High | Done | Nov 15 | In `Initial Challenge/` |
 | T-03 | Run baseline and validation; insurance submission | A | High | Done | Nov 15 | `submissions/CuleCode_insurance_smooth50.csv` |
-| T-04 | Set up repo, `.gitignore`, pinned requirements | E | High | Not started | Nov 15 | Keep private until the end |
+| T-04 | Set up repo, `.gitignore`, pinned requirements | E | High | Done | Nov 15 | Private GitHub repo, pushed |
 | T-05 | Clone and inspect PathCRF, Metrica sample data | D | Medium | Done | Nov 15 | Cloned to `external/` |
 | T-06 | Features module (control radius, team evidence) | C | High | Done (v1) | Nov 16 | `src/features.py`; statistics checks still to do |
 | T-07 | Viterbi decoder with sticky transitions | B | High | Done (v1) | Nov 16 | `src/decode.py`; weights to be checked on other matches |
 | T-08 | Restart and tag rules | D | High | Done (v1) | Nov 16 | `src/tags.py`; throw-in and `N/A` handling still open |
 | T-09 | Full-match submission generated and validated | B + C + D | High | Done (v1) | Nov 16 | `submissions/CuleCode_v1.csv` |
 | T-13 | Metrica sample matches as a validation set (other games) | C + D | High | Done (proxy) | Nov 16 | `src/metrica_val.py`, `src/sweep_metrica.py`; labels are an event-derived proxy |
-| T-14 | Git repo: first commit, add members, push | E | High | In progress | Nov 15 | Local repo created; remote not yet set |
-| T-15 | HPC access checked, CPU partition name confirmed | A | Medium | Not started | Nov 16 | `hpc/run_pipeline.sbatch` template ready |
-| T-10 | Technical document drafted | E | High | Not started | Nov 17 | Required deliverable |
+| T-14 | Git repo: first commit, add members, push | E | High | Done (repo created) | Nov 15 | `abdalrahman-ismaik/more-than-a-hack-2027-cule-code`, private. Add members as collaborators |
+| T-15 | HPC access checked | A | Medium | Done | Nov 15 | GPU access confirmed (`gpu-debug` and `gpu-student`). CPU partition not needed |
+| T-16 | Full-match video ball detection (HPC and laptop) | A + B | High | Done | Nov 15 | Job 665 completed; results agree within 1 m on 99.4% of shared detections |
+| T-17 | Candidate v1.2: video ball fills tracking gaps | B + C | High | Done (candidate) | Nov 15 | 251 possessions. Choice of submission pending |
+| T-18 | Licence decision for the AGPL-3.0 detector | Team lead | High | Open | Nov 16 | Required before the repo goes public |
+| T-19 | Technical document drafted | E | High | In progress | Nov 17 | Draft in `docs/technical_document.md` |
 | T-11 | Final clean-clone reproduction check | E | High | Not started | Nov 17 | Must produce the same file |
 | T-12 | Submit | Team lead | High | Not started | Nov 17 | Target 14:00 |
 
@@ -251,6 +273,10 @@ Five members. Each person owns one area, with one clear deliverable and a comple
 | 2026-11-15 | Osama's registration accepted. Team is now five members. | Team lead | Roles assigned in this README. |
 | 2026-11-15 | Strategy: possession from player geometry plus a sticky 3-state decoder (v1). Learned PathCRF-style model is a stretch goal only. | Team | Revisit at the Nov 16 evening check-in. |
 | 2026-11-15 | Reused code cloned to `external/`: PathCRF, Metrica sample data. | D | Check Metrica sample licence before use. |
+| 2026-11-15 | Decoder weights chosen on Metrica sample games (other matches), not on the public window. Current defaults: `W_CONTROL` 0.5, `BIAS_DEAD` 0.0, transitions as in `src/decode.py`. | B, C | Check possession counts against the proxy: the decoder gives fewer possessions than the proxy. |
+| 2026-11-15 | Video ball detector (YOLO11n, AGPL-3.0) run on the full match on the HPC and the laptop. Results agree. | A, B | Licence decision open (T-18). |
+| 2026-11-15 | Candidate v1.2 uses video positions only where the tracking ball is missing. Not yet the submission. | Team | Decide with the team once the licence question is settled. |
+| 2026-11-15 | Data use on the university server confirmed as allowed under the data terms. | Team lead | — |
 
 ## Important files and links
 
@@ -261,9 +287,10 @@ Five members. Each person owns one area, with one clear deliverable and a comple
 | [MORE_THAN_A_HACK_2027.md](MORE_THAN_A_HACK_2027.md) | Event facts and participation guide | Public event summary; not official rules |
 | [`challenge/`](challenge/README.md) | Official challenge repo: specs, evaluation, starter baselines, public 5-minute ground truth | Match data is separately licensed and is not included |
 | `external/` | Cloned reused repos and external data | Git-ignored. Do not commit |
-| `src/` | Our pipeline code (features, decoder, rules, submission) | Created as modules land |
+| `src/` | Our pipeline code: tracking, tags, features, decoder, pipeline, video detection, validation | See the module table above |
+| `hpc/` | Slurm job scripts for the KU H100 server | `run_video_ball.sbatch` is ready. `run_pipeline.sbatch` is not |
+| `docs/` | Technical document draft and notes | No restricted data |
 | `notebooks/` | Exploratory analysis | Keep outputs small |
-| `docs/` | Technical document, schema notes, decisions | No restricted data |
 | `submissions/` | Generated submission files | Follow the official submission rules |
 | `data/` | Local match data | Git-ignored. Do not commit or redistribute |
 
