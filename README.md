@@ -135,6 +135,34 @@ python -m src.pipeline --name CuleCode_v1_3_skillcorner --preset skillcorner
 - **Candidate v1.2** (`src/pipeline.py --video-ball`): uses the video detections only where the tracking ball is missing. Full match: 251 possessions, mean 16.8 s (v1.1: 186, 22.9 s). Passes the validator. Not yet chosen for submission: there is no validation signal for its effect on score, and the AGPL-3.0 licence of the detector must be settled before the repo becomes public.
 - **Video detector check on 300 frames** (earlier, before the full run): 64% of frames had a pitch detection. The full-match numbers above supersede it.
 
+### Learned-model experiment (2026-11-16)
+
+We retrained the external LightGBM + bidirectional GRU pipeline on the HPC and compared it with an XGBoost model. This is a separate experiment from the hand-built `src/` v1 pipeline above.
+
+- **Training/validation games:** 27 leave-one-game-out folds: 7 DFL/IDSSE Bundesliga games and 20 SkillCorner A-League games (2024/25). SkillCorner contributes official phases-of-play labels; its source, frame rate, and label construction differ from DFL, so report the subsets as well as the combined mean. These 20 games were used as training data in the other folds and as held-out games in their own folds.
+- **Features and sampling:** all 108 cached features were retained; no feature columns were dropped. The folds reuse the existing noise-degraded features, both team orientations, and every-third-frame training stride. The cache has 81 files (three realisations for each of 27 games).
+- **XGBoost run:** XGBoost 3.4.1 with CUDA on one H100; 27 OOF folds and a final fit. Its files are isolated under `models_xgb/` on the HPC.
+
+| OOF model and decoder | Mean spellF1 | Mean macroF1 | DFL spellF1 | SkillCorner spellF1 |
+|---|---:|---:|---:|---:|
+| LightGBM + GRU (current reference) | **0.5675** | **0.8623** | **0.6689** | **0.5319** |
+| XGBoost | 0.5388 | 0.8545 | 0.6063 | 0.5152 |
+| XGBoost + GRU | 0.5472 | 0.8556 | 0.6523 | 0.5104 |
+| LightGBM + GRU + XGBoost (equal weights) | 0.5620 | 0.8616 | 0.6538 | 0.5299 |
+
+The current OOF results show no gain from adding XGBoost; LightGBM + GRU remains the OOF reference. This is not a like-for-like comparison with Osama's original **0.690 / 0.918** result, which was seven-fold DFL-only validation. In this 27-game run, the DFL subset scored 0.6689 and the combined average also includes the lower-scoring SkillCorner subset.
+
+**Public five-minute sanity check (2026-11-16):** all four retrained variants generated valid full-length submissions and were scored on the provided window. The public ground truth contains only 17 possessions. The scorer's spellF1 bootstrap intervals are broad and overlap substantially, so these figures are recorded only as an end-to-end pipeline check, not used to tune or select a model.
+
+| Variant | Public spellF1 | Public macroF1 | Predicted possessions | SpellF1 bootstrap interval |
+|---|---:|---:|---:|---:|
+| XGBoost + GRU | 0.6483 | 0.8975 | 12 | 0.4138–0.8432 |
+| LightGBM + GRU | 0.6267 | 0.8905 | 13 | 0.4000–0.8267 |
+| LightGBM + GRU + XGBoost | 0.6133 | 0.8635 | 13 | 0.4000–0.8133 |
+| XGBoost | 0.5935 | 0.8458 | 14 | 0.4000–0.7810 |
+
+Team review requested: are there improvements worth testing with the 20 SkillCorner games, especially around mixing datasets with different label conventions, without using the public five-minute labels to choose a model?
+
 ### HPC (KU H100 teaching server)
 
 - Access: PuTTY or `ssh`, host `10.11.45.11`, port 22. Use KU VPN off campus. Use only your own credentials.
@@ -286,6 +314,7 @@ Five members. Each person owns one area, with one clear deliverable and a comple
 | 2026-11-15 | Video ball detector (YOLO11n, AGPL-3.0) run on the full match on the HPC and the laptop. Results agree. | A, B | Licence decision open (T-18). |
 | 2026-11-15 | Candidate v1.2 uses video positions only where the tracking ball is missing. Not yet the submission. | Team | Decide with the team once the licence question is settled. |
 | 2026-11-15 | Data use on the university server confirmed as allowed under the data terms. | Team lead | — |
+| 2026-11-16 | Ran a 27-game LightGBM + GRU retrain and XGBoost comparison using 7 DFL and 20 SkillCorner games. None of the XGBoost variants improved OOF over LightGBM+GRU. All four variants then passed the public five-minute end-to-end sanity check; its 17-possession scores were not used for model selection. | Team | Request review for other-match improvements; retain LightGBM+GRU as the OOF reference. |
 
 ## Important files and links
 

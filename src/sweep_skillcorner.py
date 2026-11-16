@@ -16,10 +16,10 @@ from src import skillcorner_val
 
 GRID = {
     "w_control": [0.5, 1.0, 2.0],
-    "bias": [0.0, 0.5],
-    "p_team_to_dead": [0.004, 0.008, 0.016],
-    "p_switch": [0.002, 0.004, 0.008, 0.016],
-    "p_dead_to_team": [0.002, 0.004, 0.01, 0.02],
+    "bias": [0.0],
+    "p_team_to_dead": [0.016, 0.032, 0.064],
+    "p_switch": [0.001, 0.002, 0.004],
+    "p_dead_to_team": [0.004, 0.02],
 }
 
 # 25 fps -> 10 fps: each SkillCorner frame spans 2.5x longer, so rates scale by 2.5.
