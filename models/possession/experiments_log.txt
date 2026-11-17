@@ -1,0 +1,18 @@
+  fold J03WMX
+  fold J03WN1
+  fold J03WOH
+  fold J03WOY
+  fold J03WPY
+  fold J03WQQ
+  fold J03WR9
+ball never missing: spellF1 0.7110 macroF1 0.9330 (decoder from realistic run)
+  self-train fold J03WMX (75766 pseudo rows) 110s
+  self-train fold J03WN1 (71362 pseudo rows) 113s
+  self-train fold J03WOH (72150 pseudo rows) 114s
+  self-train fold J03WOY (73596 pseudo rows) 113s
+  self-train fold J03WPY (78940 pseudo rows) 115s
+  self-train fold J03WQQ (73520 pseudo rows) 109s
+  self-train fold J03WR9 (77734 pseudo rows) 115s
+baseline          spellF1 0.6543 macroF1 0.9104
+self-trained      spellF1 0.6534 macroF1 0.9102 (same decoder)
+self-trained      spellF1 0.6619 macroF1 0.9111 (re-tuned decoder {'c_switch': 8, 'c_to_dead': 64, 'c_from_dead': 64, 'temp': 1.0})

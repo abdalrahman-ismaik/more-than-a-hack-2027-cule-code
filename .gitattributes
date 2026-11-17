@@ -1,1 +1,4 @@
 * text=auto eol=lf
+# trained models must stay byte-identical
+models/possession/*.txt -text
+models/possession/*.pt binary

@@ -31,7 +31,10 @@ Initial Challenge/
 
 
 # Detector weights (AGPL-3.0, not redistributed) and local test outputs
-models/
+models/*
+# our trained possession models are committed (they regenerate the submission)
+!models/possession/
+models/possession/oof_*.npz
 data_test/
 results/
 
