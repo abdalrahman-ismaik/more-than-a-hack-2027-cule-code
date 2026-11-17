@@ -66,7 +66,8 @@ def main():
 
     match = data.load_atd()
     from . import seq
-    gru = seq.load(os.path.join(MODEL_DIR, "gru.pt"))
+    # decoder.json lists the GRU files to average (a seed ensemble); one GRU if it lists none.
+    grus = [seq.load(os.path.join(MODEL_DIR, f)) for f in params.get("gru_models", ["gru.pt"])]
     _, xa = features.compute(match)
     _, xb = features.compute(match, swap=True)
     with open(os.path.join(MODEL_DIR, "feature_names.json")) as handle:
@@ -78,7 +79,7 @@ def main():
         xa = np.concatenate([xa, ta], axis=1)
         xb = np.concatenate([xb, tb], axis=1)
     p_lgb = probabilities(match, model, xa, xb)
-    p_gru = seq.predict(gru, xa, xb, match.segments)
+    p_gru = np.mean([seq.predict(g, xa, xb, match.segments) for g in grus], axis=0)
     probs = (p_lgb + p_gru) / 2.0
     np.save(os.path.join(data.CACHE_DIR, "BAR-ATH_probs.npy"), probs)
     probs = np.nan_to_num(probs, nan=1 / 3)

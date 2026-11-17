@@ -20,10 +20,14 @@ treat the task as supervised sequence labelling:
 3. **Decode possessions.** A three-state Viterbi decoder turns the per-frame probabilities into
    possessions. Its switching costs maximise `spellF1` on held-out DFL games.
 
-Held-out score on DFL games (leave-one-game-out): **spellF1 0.690, macroF1 0.918** (§6).
+Held-out score on DFL games (leave-one-game-out): **spellF1 0.690, macroF1 0.918** (§6). On the
+public five minutes (17 possessions, a pipeline check only) the file scores spellF1 0.645, macroF1
+0.877, against 0.33 for the published baseline.
 
-Nothing is tuned on BAR-ATH. The public five minutes were used only as a pipeline check: frame
-alignment, H/A orientation and file format.
+No labels of BAR-ATH are used anywhere. The only BAR-ATH-derived quantities are label-free
+aggregate statistics of its tracking and Smart Tagging, used to make the training data look like
+it (§4, §8). The public five minutes were used only as a pipeline check: frame alignment, H/A
+orientation and file format.
 
 **Why this rather than something else.** The team first built a hand-weighted pipeline. A control
 score from the nearest home and away player, Smart Tagging priors and a sticky decoder had their
@@ -179,7 +183,8 @@ All decisions below were made on held-out games from other matches, never on BAR
 |---|---|---|
 | Hand-built pipeline (control score, Smart Tagging priors, sticky decoder; weights chosen on other matches) | spellF1 0.41–0.47 on held-out SkillCorner / Metrica games | replaced by the learned pipeline |
 | Smart Tagging, **quick version**: rules that raise P(dead) before an expected restart and P(tagged team) after it, tuned on DFL with simulated tags | 0.6900 → 0.6915 | not adopted: below any meaningful margin |
-| Smart Tagging, **learned version**: tag inputs added to both models, retrained | TAGS_PROPER_RESULT | TAGS_PROPER_DECISION |
+| Smart Tagging, **learned version**: tag inputs added to both models, retrained | 0.6900 → 0.6843; worse on 6 of 7 games (LightGBM alone: 0.6608 → 0.6594) | not adopted |
+| GRU seed ensemble (seeds 2027 and 1 averaged) | 0.6900 → 0.6895; the second seed alone also scores 0.6900 | not adopted |
 | Adding the 20 SkillCorner games to training (27-fold CV) | DFL subset 0.669 vs 0.690 | dropped: different label convention (phases of play) |
 | XGBoost in place of, or alongside, LightGBM | 0.606–0.654 on the DFL subset | dropped |
 | Self-training on BAR-ATH with confident pseudo-labels | −0.001 to +0.003 | dropped |
@@ -232,7 +237,8 @@ python run.py all        # from scratch: download DFL open data, features, CV, t
 
 - **Determinism.** Seeds are fixed, LightGBM runs in deterministic mode, and PyTorch runs on the
   CPU with deterministic algorithms. The committed models regenerate the submitted file byte for
-  byte (MD5 SUBMISSION_MD5).
+  byte (`submissions/CuleCode.csv`, MD5 `03433039381d97ce285e8fef1b7d95cf`). Refitting both final
+  models from scratch reproduces the committed files bit for bit.
 - **What is committed.** Code, trained models, decoder costs, and aggregate statistics of the
   provided tracking and Smart Tagging (`models/possession/*.json`: rates, quantiles and offsets,
   nothing per-frame). No match data, video or per-frame tracking.
@@ -247,6 +253,7 @@ python run.py all        # from scratch: download DFL open data, features, CV, t
 | `pipeline/seq.py` | bidirectional GRU |
 | `pipeline/decode.py` | Viterbi decoder, controlled-possession target |
 | `pipeline/predict.py` | the submission file |
+| `pipeline/experiments.py`, `pipeline/gru_seeds.py` | dropped experiments: ball upper bound, self-training, GRU seeds |
 | `src/` | the hand-built pipeline and the SkillCorner / Metrica / video experiments |
 
 **Use of AI assistance.** The learned pipeline was written with an LLM coding assistant (Claude).
