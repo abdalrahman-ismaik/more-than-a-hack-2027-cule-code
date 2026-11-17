@@ -3,10 +3,11 @@
     pip install -r requirements-pipeline.txt
     python run.py download      # the open DFL training games (other matches, CC-BY 4.0)
     python run.py train         # models/possession/ from the DFL games
-    python run.py predict       # submissions/submission.csv for BAR-ATH
+    python run.py predict       # submissions/CuleCode.csv for BAR-ATH
     python run.py all           # all three
 
-The provided BAR-ATH data is expected under data/ as described in data/README.md.
+Metrica's challenge repo must be cloned into challenge/ (loaders, scorer, validator), and the
+provided BAR-ATH data is expected under data/tactical/ (or set MTAH_DATA_DIR).
 """
 
 import os
@@ -46,4 +47,4 @@ if __name__ == "__main__":
     if step in ("predict", "all"):
         module("pipeline.predict")
         subprocess.run([sys.executable, os.path.join("challenge", "evaluation", "validate_submission.py"),
-                        os.path.join("submissions", "submission.csv")], cwd=ROOT, check=True)
+                        os.path.join("submissions", "CuleCode.csv")], cwd=ROOT, check=True)
