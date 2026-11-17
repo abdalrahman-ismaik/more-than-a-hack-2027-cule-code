@@ -3,3 +3,4 @@
 models/* -text
 models/*.pt binary
 docs/*.pdf binary
+submissions/*.pdf binary
