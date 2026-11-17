@@ -1,40 +1,38 @@
-# Restricted match data: never commit or redistribute
-data/
+# Restricted match assets and caches
+/data/*
+!/data/README.md
+/Initial Challenge/
 *.mp4
 *.mov
 *.avi
-*.txt.gz
+*.gzip
+*_possession_gt.csv
+*_possession_gt_reference.csv
+possession_by_frame.pkl
 
-# Cloned reused repos and external datasets
-external/
-
-# Generated outputs
-submissions/*.csv
-challenge/evaluation/results/*.csv
-!challenge/evaluation/results/baseline_*.csv
-
-# Python
+# Local tools and environments
+.venv/
+venv/
 __pycache__/
 *.py[cod]
-.venv/
 .ipynb_checkpoints/
-
-# Editors and OS
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+AGENTS.md
+CLAUDE.md
+.agents/
+.claude/
+.codex/
 
-# Official challenge clone (own git repo) and organiser data: never commit
-challenge/
-Initial Challenge/
-
-
-# Detector weights (AGPL-3.0, not redistributed) and local test outputs
-models/*
-# our trained possession models are committed (they regenerate the submission)
-!models/possession/
-models/possession/oof_*.npz
-data_test/
-results/
-
+# Intermediate outputs
+/models/oof_*.npz
+/evaluation/results/
+/evaluation/reports/
+/evaluation/scoreboard.csv
+/tmp/
+/output/
+/submissions/*
+!/submissions/CuleCode.csv
+!/submissions/manifest.json

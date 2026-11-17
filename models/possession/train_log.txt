@@ -1,6 +1,0 @@
-features ready (4s)
-held-out DFL, per-frame argmax : spellF1 0.5348  macroF1 0.9171
-held-out DFL, tuned Viterbi    : spellF1 0.6900  macroF1 0.9178  {'c_switch': 4, 'c_to_dead': 2, 'c_from_dead': 48, 'temp': 1.0}
-  per game spellF1: 0.631 0.675 0.730 0.682 0.706 0.695 0.712
-final LightGBM saved (131s)
-final models saved (573s total)

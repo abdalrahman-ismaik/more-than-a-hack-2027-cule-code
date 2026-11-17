@@ -37,8 +37,8 @@ class Net(nn.Module):
         return self.out(h)
 
 
-def _setup(seed=SEED):
-    torch.manual_seed(seed)
+def _setup():
+    torch.manual_seed(SEED)
     torch.use_deterministic_algorithms(True)
     torch.set_num_threads(12)
 
@@ -62,10 +62,10 @@ def _sequences(x, y, segments):
     return out
 
 
-def fit(games, seed=SEED):
+def fit(games):
     """games: list of (xa, xb, y, segments) training realisations."""
-    _setup(seed)
-    rng = np.random.default_rng(seed)
+    _setup()
+    rng = np.random.default_rng(SEED)
     seqs = []
     for xa, xb, y, segs in games:
         seqs += _sequences(xa, y, segs)
@@ -130,7 +130,7 @@ def save(model, path):
 
 
 def load(path):
-    blob = torch.load(path, weights_only=False)
+    blob = torch.load(path, weights_only=False, map_location="cpu")
     net = Net(blob["n_in"])
     net.load_state_dict(blob["state"])
     net.eval()

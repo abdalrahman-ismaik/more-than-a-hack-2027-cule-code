@@ -1,6 +1,6 @@
 """Label every frame of the provided game with the trained model and decoder.
 
-    python -m pipeline.predict [--name NAME]     # writes submissions/NAME.csv (default CuleCode)
+    python -m pipeline.predict [--name NAME]     # writes submissions/NAME.csv
 
 Uses only the provided tracking for BAR-ATH plus models/ (trained on DFL games). Frames outside
 the two halves are written as X; inside them every frame gets H, A or D.
@@ -13,26 +13,24 @@ import os
 import lightgbm as lgb
 import numpy as np
 
-from . import data, decode, features, tags
+from . import data, decode, features
 
 ROOT = data.ROOT
-MODEL_DIR = os.path.join(ROOT, "models", "possession")
-if os.environ.get("MTAH_TAGS", "0") == "1":
-    MODEL_DIR = os.path.join(ROOT, "models", "possession_tags")
+MODEL_DIR = os.path.join(ROOT, "models")
 OUT_DIR = os.path.join(ROOT, "submissions")
 CODES = np.array(["H", "A", "D", "X"])
 
-# FAQ.md: "the second half is graded from frame 110,808 but does not kick off until 113,742. Those
-# 2,934 frames are graded and all of them are D." A published fact about the frame range, applied
-# to the probabilities before decoding so the kickoff that follows is decoded normally.
-KNOWN_DEAD = [(110808, 113742)]
+# Organizer FAQ: the graded second half starts before the kickoff. Preserve the
+# published boundary policy already present in the team's latest main branch.
+KNOWN_DEAD = ((110808, 113742),)  # half-open, tactical-video frame indices
 
 
 def apply_known_dead(probs):
-    probs = probs.copy()
+    """Apply the organizer-published pre-kickoff interval before sequence decoding."""
+    result = probs.copy()
     for start, stop in KNOWN_DEAD:
-        probs[start:stop] = (1e-6, 1e-6, 1.0 - 2e-6)
-    return probs
+        result[start:stop] = (1e-6, 1e-6, 1.0 - 2e-6)
+    return result
 
 
 def probabilities(match, model, xa, xb):
@@ -56,8 +54,6 @@ def write_csv(path, codes):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--name", default="CuleCode")
-    parser.add_argument("--rules", action="store_true",
-                        help="apply the quick-version tag rules from tag_rules.json")
     args = parser.parse_args()
 
     model = lgb.Booster(model_file=os.path.join(MODEL_DIR, "lgbm.txt"))
@@ -66,28 +62,19 @@ def main():
 
     match = data.load_atd()
     from . import seq
-    # decoder.json lists the GRU files to average (a seed ensemble); one GRU if it lists none.
-    grus = [seq.load(os.path.join(MODEL_DIR, f)) for f in params.get("gru_models", ["gru.pt"])]
-    _, xa = features.compute(match)
-    _, xb = features.compute(match, swap=True)
+    gru = seq.load(os.path.join(MODEL_DIR, "gru.pt"))
+    names, xa = features.compute(match)
+    swapped_names, xb = features.compute(match, swap=True)
     with open(os.path.join(MODEL_DIR, "feature_names.json")) as handle:
-        uses_tags = any(n.startswith("tag_") for n in json.load(handle))
-    smart = tags.smart_restarts()
-    if uses_tags:
-        _, ta = tags.features(match.n_frames, match.segments, smart)
-        _, tb = tags.features(match.n_frames, match.segments, smart, swap=True)
-        xa = np.concatenate([xa, ta], axis=1)
-        xb = np.concatenate([xb, tb], axis=1)
+        expected_names = json.load(handle)
+    if list(names) != expected_names or list(swapped_names) != expected_names:
+        raise ValueError("Computed features do not match the committed model feature order")
     p_lgb = probabilities(match, model, xa, xb)
-    p_gru = np.mean([seq.predict(g, xa, xb, match.segments) for g in grus], axis=0)
+    p_gru = seq.predict(gru, xa, xb, match.segments)
     probs = (p_lgb + p_gru) / 2.0
     np.save(os.path.join(data.CACHE_DIR, "BAR-ATH_probs.npy"), probs)
-    probs = np.nan_to_num(probs, nan=1 / 3)
-    if args.rules:
-        with open(os.path.join(MODEL_DIR, "tag_rules.json")) as handle:
-            probs = tags.apply_rules(probs, smart, json.load(handle))
-    probs = apply_known_dead(probs)
-    codes = decode.decode(np.nan_to_num(probs, nan=1 / 3), match.segments, params,
+    probs = apply_known_dead(np.nan_to_num(probs, nan=1 / 3))
+    codes = decode.decode(probs, match.segments, params,
                           n_frames=match.n_frames)
     path = write_csv(os.path.join(OUT_DIR, args.name + ".csv"), codes)
     print("wrote", os.path.relpath(path, ROOT))

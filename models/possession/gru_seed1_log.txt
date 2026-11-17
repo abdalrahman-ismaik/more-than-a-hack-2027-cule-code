@@ -1,7 +1,0 @@
-  gru seed 1 fold J03WMX done in 679s
-  gru seed 1 fold J03WN1 done in 638s
-  gru seed 1 fold J03WOH done in 639s
-  gru seed 1 fold J03WOY done in 656s
-  gru seed 1 fold J03WPY done in 649s
-  gru seed 1 fold J03WQQ done in 665s
-  gru seed 1 fold J03WR9 done in 651s

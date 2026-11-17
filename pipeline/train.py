@@ -26,15 +26,10 @@ import numpy as np
 from . import data, decode, features, noise
 
 ROOT = data.ROOT
-sys.path.insert(0, os.path.join(data.CHALLENGE, "evaluation"))
+sys.path.insert(0, os.path.join(ROOT, "evaluation"))
 import possession_metrics as pm  # noqa: E402
 
-# MTAH_TAGS=1 adds the Smart-Tagging restart inputs (pipeline/tags.py): simulated tags for the DFL
-# games, the real Smart Tagging for the provided game. Its models go to their own folder.
-USE_TAGS = os.environ.get("MTAH_TAGS", "0") == "1"
-BASE_MODEL_DIR = os.path.join(ROOT, "models", "possession")
-MODEL_DIR = os.path.join(ROOT, "models", "possession_tags") if USE_TAGS else BASE_MODEL_DIR
-TAG_STATS = os.path.join(BASE_MODEL_DIR, "tag_stats.json")
+MODEL_DIR = os.path.join(ROOT, "models")
 FEAT_DIR = os.path.join(data.CACHE_DIR, "features")
 SEED = 2027
 STRIDE = 3               # training rows: every 3rd frame (neighbours are near-duplicates)
@@ -85,41 +80,9 @@ def build_features():
         pool.map(_game_features, jobs)
 
 
-_SIM_TAGS = {}
-
-
-def sim_tags(match_id, realisation):
-    """Simulated Smart-Tagging set pieces for one noise realisation of a DFL game (seeded)."""
-    from . import tags
-    key = (match_id, realisation)
-    if key not in _SIM_TAGS:
-        with open(TAG_STATS) as handle:
-            stats = json.load(handle)
-        match = data.load_dfl(match_id)
-        rng = np.random.default_rng([SEED, data.DFL_MATCHES.index(match_id), realisation, 99])
-        _SIM_TAGS[key] = tags.simulate(tags.dfl_restarts(match, match_id), stats,
-                                       match.segments, rng)
-    return _SIM_TAGS[key]
-
-
-def add_tag_features(game, tag_list):
-    from . import tags
-    n = len(game["xa"])
-    segs = [tuple(s) for s in game["segments"]]
-    names, ta = tags.features(n, segs, tag_list)
-    _, tb = tags.features(n, segs, tag_list, swap=True)
-    game["xa"] = np.concatenate([game["xa"], ta], axis=1)
-    game["xb"] = np.concatenate([game["xb"], tb], axis=1)
-    game["names"] = np.concatenate([game["names"], names])
-    return game
-
-
 def _load(match_id, realisation):
     z = np.load(os.path.join(FEAT_DIR, "dfl_{}_r{}.npz".format(match_id, realisation)))
-    game = {k: z[k] for k in z.files}
-    if USE_TAGS:
-        game = add_tag_features(game, sim_tags(match_id, realisation))
-    return game
+    return {k: z[k] for k in z.files}
 
 
 def _rows(game):

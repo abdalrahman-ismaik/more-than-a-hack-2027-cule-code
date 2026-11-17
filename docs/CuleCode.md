@@ -1,263 +1,87 @@
-# CuléCode: possession from automatic tracking
+# CuléCode
+## Possession from automatic tracking
+More Than a Hack 2027 - Initial Challenge | Technical document | 17 November 2026
 
-*More than a Hack 2027, Phase 1: technical document. Team CuléCode, Khalifa University.*
+**Team:** Abd Alrahman Ismaik, Faisal Alzarooni, Mohamed Elashmouney, Hardik Sharma and Osama Qa'adan.
 
-## 1. Approach
+**Contact:** abdalrahman.ismaik@gmail.com
 
-We label every frame `H`, `A` or `D` inside the two graded halves, and `X` outside them.
+### 1. Final approach
 
-The ground truth is mechanical. A frame is `D` where the *corrected* tracking marks the ball dead;
-otherwise it is the team that tracking names as owning the ball (CHALLENGE.md). Open data with
-exactly these two per-frame flags exists for other matches: the DFL / IDSSE release, with
-`BallStatus` and `BallPossession` on every frame of seven Bundesliga and 2. Bundesliga games. So we
-treat the task as supervised sequence labelling:
+We infer home-team possession (H), away-team possession (A) and dead ball (D) from the supplied tactical automatic tracking. Frames outside the supplied halves are X. The final submission has 199,319 rows at 25 frames per second.
 
-1. **Train on other matches.** We use the seven DFL games, after degrading their clean tracking to
-   match the noise of the provided automatic tracking.
-2. **Two models, averaged.** A gradient-boosted classifier (LightGBM) and a bidirectional GRU
-   predict H/A/D per frame from identity-free, team-symmetric features. The features look both
-   backwards and forwards in time.
-3. **Decode possessions.** A three-state Viterbi decoder turns the per-frame probabilities into
-   possessions. Its switching costs maximise `spellF1` on held-out DFL games.
+The selected system is a LightGBM plus bidirectional GRU ensemble trained on seven external DFL matches. Both models produce probabilities for H, A and D. We average their probabilities and decode each half using a three-state Viterbi algorithm. The model uses 108 geometric and temporal features and can use future observations: this is an offline labeling system, not a live predictor.
 
-Held-out score on DFL games (leave-one-game-out): **spellF1 0.690, macroF1 0.918** (§6). On the
-public five minutes (17 possessions, a pipeline check only) the file scores spellF1 0.645, macroF1
-0.877, against 0.33 for the published baseline.
+Only the original DFL-trained checkpoint is used in the submitted file. It comes from Osama Qa'adan's repository, commit 0fe3337c1b0d861fa3f5d61630687232220ff5ad. The selected weights, decoder and feature metadata are unchanged. Packaging adds a team-named command, validation and a feature-order check. We retain the organizer-published second-half pre-kickoff rule already added in the team repository: frames 110808 through 113741 receive dead-ball evidence before decoding.
 
-No labels of BAR-ATH are used anywhere. The only BAR-ATH-derived quantities are label-free
-aggregate statistics of its tracking and Smart Tagging, used to make the training data look like
-it (§4, §8). The public five minutes were used only as a pipeline check: frame alignment, H/A
-orientation and file format.
+### 2. Assets and training labels
 
-**Why this rather than something else.** The team first built a hand-weighted pipeline. A control
-score from the nearest home and away player, Smart Tagging priors and a sticky decoder had their
-few weights chosen on other matches. It reached spellF1 0.41–0.47 on held-out SkillCorner and
-Metrica games, and 0.31 on the public window. Learning from data that carries the exact target
-labels was far stronger, so the learned pipeline is the submission. The hand-built pipeline stays
-in `src/` as a documented alternative.
+**Target-match inputs:** tactical ATD metadata and player/ball coordinates. Team membership comes from metadata. Aggregate tracking statistics, computed without labels, parameterize the training noise simulation. Tactical video, broadcast footage, homography and Smart Tagging are not prediction inputs to the final model. Smart Tagging was considered as a consistency check, not a fitted prior.
 
-## 2. Assets used
+**External training data:** seven DFL/IDSSE Bundesliga and 2. Bundesliga matches, with provider BallStatus and BallPossession flags at 25 Hz, distributed under CC BY 4.0. Match IDs are J03WMX, J03WN1, J03WOH, J03WOY, J03WPY, J03WQQ and J03WR9. Labels come from the provider, not team annotations: D for dead ball, otherwise H or A from possession. No target-match labels enter model fitting.
 
-| asset | used? | how |
-|---|---|---|
-| Tactical ATD (players + ball) and metadata | yes | the main input at prediction time; team of each track slot |
-| Smart Tagging | tested, see §8 | SET PIECES as restart evidence, quick and learned versions |
-| Tactical video | no (for the submission) | a YOLO ball detector was run on it as an experiment (§8) |
-| Homography | no (for the submission) | maps video detections to the pitch in that experiment |
-| Broadcast video / ATD | no | not synchronised to the tactical video; the tactical ATD covers the whole match |
-| Public 5-minute ground truth | pipeline check only | never used to choose a model, setting or version |
-| FAQ.md frame table | yes | frames 110,808–113,741 (second-half kickoff wait) are graded and all `D` (§7) |
+A training-target rule folds opposing spells shorter than one second into the previous team's possession when followed by that team again or by dead ball. Short spells immediately after restarts are retained. This is an operational approximation to controlled possession, not independently verified touch annotation.
 
-## 3. Training data
+<!-- pagebreak -->
 
-All labelled data comes from other matches. None of it is about BAR-ATH, and none of it was
-labelled by us.
+### 3. Noise adaptation and features
 
-| dataset | source, licence | labels, who made them | how much | used for |
-|---|---|---|---|---|
-| **DFL / IDSSE open data** | Bassek et al., *Scientific Data* 2025; DFL and Sportec Solutions; CC-BY 4.0; Hugging Face mirror `pysport/idsse-data` | per-frame `BallStatus` and `BallPossession` from the data provider's corrected tracking; set-piece events from the official event log | 7 matches, ~1.0 M frames at 25 fps | **training and validation of the submitted model** |
-| SkillCorner open data | `SkillCorner/opendata`, MIT | possession spans from the published phases of play (SkillCorner) | 20 A-League matches, 10 fps | validation of the hand-built pipeline; a dropped training experiment (§8) |
-| Metrica sample data | `metrica-sports/sample-data` | possession proxy we derived from the event log | 2 matches | weight selection for the hand-built pipeline only |
-| YOLO11n ball detector | `martinjolif/yolo-football-ball-detection`, AGPL-3.0 | human-labelled ball boxes from its authors | pretrained, not fine-tuned | the dropped video-ball experiment only (§8) |
+Clean DFL tracking differs from the supplied automatic tracking. The training pipeline simulates ball gaps using speed-conditioned seen/missing transitions, player dropout, position jitter where needed, and ball motion during otherwise frozen dead-ball spans. Noise parameters are aggregate rates and quantiles; the repository does not include target per-frame tracking.
 
-**Labels.** `D` if the ball is dead, otherwise `H` or `A` from the possession flag. This is the same
-construction CHALLENGE.md describes for the ground truth.
+Features are independent of persistent player identity. They summarize ball location, speed, visibility and gap duration; nearest and second-nearest player distances; player counts near the ball; team shape and motion; and previous/next control evidence. A control cue requires a player within 1.5 m, at least 1 m closer than the nearest opponent, with relative speed below 3 m/s.
 
-**One change to the target, taken from the written definition.** The DFL possession flag flips on
-any touch. CHALLENGE.md says a touch without control, a deflection, or an aerial duel won without
-subsequent control is *not* a change of possession. So we fold back a spell by the other team
-that is shorter than 1 s and is followed by the original team again, or by a dead ball. A short
-spell straight after a restart is kept.
+Single-frame ball spikes are removed and gaps are interpolated. Time since/until observation and gap length let the model discount uncertain interpolated coordinates. Temporal means include past and future windows up to ten seconds. Temporal processing stays within each half. Both team orientations are used during fitting and prediction, with home/away probabilities swapped back before averaging.
 
-**Two problems in the raw DFL feed that we fixed:**
-- The referees are tracked with their own team id. We keep only the two clubs.
-- The ball position is frozen on every dead-ball frame. A model trained on that learns "ball
-  perfectly still ⇒ dead", a cue that never occurs in automatic tracking. We replace each frozen
-  span with a smooth drift plus a random wander.
+### 4. Models, decoding and possession rules
 
-## 4. Noise adaptation
+**LightGBM:** three-class gradient boosting, 400 rounds and 63 leaves, trained with a fixed seed and deterministic settings. Training uses every third labeled frame, two noise realizations per game and both team orientations.
 
-The provided tracking is automatic: the ball is missing on 41% of graded frames, players drop out
-and tracks fragment. The DFL tracking is corrected and complete, so we degrade the training games
-until their inputs look like the test game's. Every statistic below is an aggregate measured on
-the provided tracking without labels, which RULES.md allows ("learning without human labels").
-They are saved in `models/possession/noise_stats.json`.
+**GRU:** a two-layer bidirectional recurrent network with hidden size 64, evaluated at 5 Hz from the same features and interpolated back to 25 Hz. Training uses six epochs and roughly 51-second chunks. The committed artifact includes its feature scaler.
 
-| effect | how it is simulated | matched statistic |
-|---|---|---|
-| ball missing | two-state Markov chain (seen/missing); its per-frame rates depend on a collective-speed bin (10 s mean player speed, 6 bins) | maximum-likelihood rates per bin on the provided tracking |
-| player dropout | each player disappears in geometric runs of ~2 s | mean players tracked per team (10.2) |
-| position jitter | Gaussian, only where the test data is noisier | robust std of second differences |
-| dead ball | smooth drift plus an Ornstein-Uhlenbeck velocity wander (σ 1.4 m/s, τ 1 s) | ball speed in slow phases |
+**Ensemble:** average the team-symmetric LightGBM and GRU H/A/D probabilities. Decode the resulting log probabilities separately within the organizer-defined half spans. Staying in a state costs zero; a direct team switch costs 4, entering dead ball costs 2 and leaving dead ball costs 48. These are log-score penalties, not probabilities. The organizer FAQ explicitly identifies frames 110808 through 113741 as dead ball. As in the team repository, their probabilities are set to (0.000001, 0.000001, 0.999998) before decoding, so the surrounding sequence is decoded normally. This published boundary rule is not learned from public-window labels.
 
-**Adversarial validation.** A classifier trained to tell DFL frames from BAR-ATH frames exposed
-three bugs, all fixed:
-- the referees counted as away players;
-- a ball-velocity clip;
-- non-robust team-shape statistics.
+**Loose balls and challenges:** the features and sequence decoder can retain the prior possessor until control changes; closest-player identity is not a direct final label. **Stoppages:** D separates possessions, including two spells of the same team before and after a stoppage. **Restarts:** a short first possession after D is retained in training. **Missing ball:** missingness alone does not force D or X. **Outside halves:** write X; the pipeline predicts H, A or D throughout each supplied half, including graded pre-kickoff frames.
 
-We also checked whether the provided tracking loses the ball more often near players, as
-occlusion would suggest. The per-frame loss rate is only about 1.4× higher within 1 m of a player
-than our simulation's, and lower at medium range, so we kept the speed-based model.
+<!-- pagebreak -->
 
-## 5. Features
+### 5. Evaluation and model selection
 
-There are 108 per-frame features, computed identically for both datasets (`pipeline/features.py`).
+The primary metric, spellF1, matches same-team possession intervals one-to-one using temporal intersection-over-union and averages F1 over thresholds 0.3, 0.4, 0.5, 0.6 and 0.7. MacroF1 averages frame classification F1 over H, A and D. Correct frame totals do not guarantee correctly recovered possessions.
 
-- **Identity-free.** Track slots are tracklets, not people, so every feature is a per-team
-  aggregate:
-  - nearest and second-nearest distance to the ball;
-  - players within 3 m and 8 m;
-  - the nearest player's speed and velocity relative to the ball;
-  - robust team shape: median position, IQR, and 10–90% length and width.
-- **Team-symmetric.** Each team's geometry is expressed in its own attacking direction, which is
-  inferred per half. Swapping the teams and the H/A labels therefore gives another valid example.
-  We use it to double the training data, and at prediction time we average the normal and the
-  swapped prediction.
-- **Ball handling.** Spikes are removed and the ball is interpolated through gaps. Every frame also
-  carries the time since the ball was last seen, the time until it is next seen, and the gap
-  length.
-- **Control events.** These follow the CHALLENGE.md proxy for control: a player within 1.5 m of
-  the ball, at least 1 m closer than any opponent, and moving with it (under 3 m/s relative
-  speed). From these come who controlled the ball last and next, and how long ago and how far
-  ahead.
-- **Offline context.** Past and future window means over 0.5–10 s of the signals above.
+**Recorded external validation:** seven-game leave-one-game-out training produced mean spellF1 0.6900 and macroF1 0.9178. Recorded per-game spellF1 values are 0.631, 0.675, 0.730, 0.682, 0.706, 0.695 and 0.712. Decoder costs were selected on these same out-of-fold predictions, so this is a development estimate with selection optimism, not an untouched test score. The original OOF arrays were unavailable for independent rescoring; checkpoint identity and recorded logs were checked.
 
-## 6. Model, decoder and validation
+**Public five-minute check:** the recovered original prediction scored spellF1 0.6452 and macroF1 0.8773 on 7,500 public frames, with 14 predicted versus 17 reference possessions. The kickoff rule concerns only the second half and leaves this first-half check unchanged. This small window checks pipeline operation and is not a full-match performance estimate. It was not used to train the models or choose decoder settings.
 
-**Two per-frame models, averaged.**
-- **LightGBM**: multiclass H/A/D, 400 rounds, 63 leaves, deterministic mode. It trains on every
-  3rd frame of two independent noise realisations per game, in both team orientations.
-- **Bidirectional GRU**: 2 layers, 64 units, at 5 fps over 51 s chunks, CPU, deterministic.
+**Other work:** earlier geometry-and-tag heuristics, optional video-ball filling, a 27-game DFL/SkillCorner retrain and XGBoost variants were explored. On a common 27-game evaluation, LightGBM + GRU scored 0.5675 spellF1 versus 0.5388 for XGBoost, 0.5472 for XGBoost + GRU and 0.5620 for an equal three-model blend. The retrain's DFL subset scored 0.6689. These mixed-dataset results are not directly comparable to the original seven-game mean because preprocessing, noise realizations, training sets and decoder selection differ. The final release retains the packaged DFL checkpoint; the other models and detector are excluded.
 
-Both use test-time team-swap averaging.
+### 6. Limitations
 
-**Decoder.** A three-state HMM (H, A, D), decoded exactly with Viterbi. An H↔A switch, entering
-`D` and leaving `D` each have a cost. The three costs were chosen by an exhaustive grid of 729
-settings, maximising mean `spellF1` from the official scorer over the seven held-out games.
+The ball is missing on about 41% of graded target frames. Noise simulation cannot fully reproduce the errors of another tracking provider, and interpolated positions can be misleading during long gaps. DFL possession conventions differ from the challenge's controlled-possession definition; the one-second training rule is only an approximation.
 
-**Validation protocol.** Leave-one-game-out over the seven DFL games. The held-out game uses a
-noise realisation that no model was trained on. All numbers are out-of-fold:
+Stationary live play, goalkeeper control and whistle stoppages can be confused. Tracking alone does not reveal the referee's whistle. Global transition penalties can merge short possessions or delay boundaries. Seven external matches provide limited coverage, and the external validation shares its data with decoder selection. The private full-match score is unknown.
 
-| configuration | spellF1 | macroF1 |
-|---|---|---|
-| ensemble, per-frame argmax (no decoder) | 0.535 | 0.917 |
-| LightGBM + tuned Viterbi | 0.659 | 0.910 |
-| GRU + tuned Viterbi | 0.690 | 0.912 |
-| **LightGBM + GRU + tuned Viterbi (submitted)** | **0.690** | **0.918** |
+<!-- pagebreak -->
 
-Per held-out game: 0.631, 0.675, 0.730, 0.682, 0.706, 0.695, 0.712.
+### 7. Reproduction and release verification
 
-These are scores on *other games with simulated noise*. They are not a prediction of the BAR-ATH
-score, because of the domain gap: a different league, the provider's own conventions, and real
-rather than simulated tracking errors.
+Use Python 3.12 with the pinned CPU packages in requirements.txt. The release was tested with Python 3.12.12. Install dependencies, set MTAH_DATA_DIR to the folder containing tactical/, and run:
 
-**Label-free consistency check on BAR-ATH.** Our predictions agree with Smart Tagging's team tags
-on 98% of live frames in Build Up phases, 90% in Progression, and 75% over all team-tagged phases.
+`python run.py predict`
 
-## 7. Possession rules implemented
+This loads the committed models, writes submissions/CuleCode.csv, and runs the official validator. Only the supplied tactical ATD XML and TXT are needed. The first run builds a local parsed-tracking cache. The generated labels must reproduce from a clean checkout; hashes, exact tested package versions and check outcomes are recorded in submissions/manifest.json.
 
-- **Dead ball.** Learned from the provider's alive/dead flag. In practice the model relies on:
-  - collective deceleration;
-  - the ball leaving the pitch;
-  - the ball being unseen while everyone is slow.
+The CSV has a frame,label header, frames 0 through 199318 in order and labels H/A/D/X. The validator checks structure rather than prediction accuracy. No hand-edited labels are applied. The exact submission files are CuleCode.csv and CuleCode.pdf.
 
-  Every stoppage ends a possession.
-- **Second-half kickoff wait.** FAQ.md states that frames 110,808–113,741 are graded and all `D`.
-  We set the model's probabilities there to `D` before decoding, so the kickoff that follows is
-  decoded normally. This removed 12 spurious possessions.
-- **Restarts.** After a stoppage, the first team to control the ball takes possession. Short spells
-  after a restart are not merged.
-- **Loose balls and challenges.** Possession stays with the last team. A spell under 1 s by the
-  other team that ends with the original team or a dead ball is not a change: it counts as a
-  touch, a deflection, or an aerial duel without control.
-- **Changes of possession** need control by the other team. They cost the decoder a switch, which
-  is what keeps one possession from splitting into many.
-- **Abstention.** We never write `X` on a graded frame.
+Training code is included. In a separate checkout, python run.py download retrieves external DFL XML files and python run.py train rebuilds models and selects the decoder. A complete retrain was not rerun for this release; reproduction of the submitted CSV uses the frozen artifacts. CPU/runtime differences may affect a new training run.
 
-## 8. What we tried and dropped
+### 8. Sources, licensing and assistance
 
-All decisions below were made on held-out games from other matches, never on BAR-ATH.
+**Official challenge, scorer and configuration:** https://github.com/metrica-sports/more-than-a-hack-2027. The pre-kickoff rule is published in FAQ.md, under "Which frames are actually graded?"
 
-| idea | result | decision |
-|---|---|---|
-| Hand-built pipeline (control score, Smart Tagging priors, sticky decoder; weights chosen on other matches) | spellF1 0.41–0.47 on held-out SkillCorner / Metrica games | replaced by the learned pipeline |
-| Smart Tagging, **quick version**: rules that raise P(dead) before an expected restart and P(tagged team) after it, tuned on DFL with simulated tags | 0.6900 → 0.6915 | not adopted: below any meaningful margin |
-| Smart Tagging, **learned version**: tag inputs added to both models, retrained | 0.6900 → 0.6843; worse on 6 of 7 games (LightGBM alone: 0.6608 → 0.6594) | not adopted |
-| GRU seed ensemble (seeds 2027 and 1 averaged) | 0.6900 → 0.6895; the second seed alone also scores 0.6900 | not adopted |
-| Adding the 20 SkillCorner games to training (27-fold CV) | DFL subset 0.669 vs 0.690 | dropped: different label convention (phases of play) |
-| XGBoost in place of, or alongside, LightGBM | 0.606–0.654 on the DFL subset | dropped |
-| Self-training on BAR-ATH with confident pseudo-labels | −0.001 to +0.003 | dropped |
-| Video ball detection (YOLO11n, homography) where the tracking ball is missing | fills 17.6% of the gaps; 18% of detections disagree with the tracking by > 6 m | not used (below) |
+**Original model implementation and frozen artifacts:** https://github.com/OsamaQ05/barca-hack-2027 at commit 0fe3337c1b0d861fa3f5d61630687232220ff5ad.
 
-**How the Smart Tagging test works.** The model can only learn how far to trust a tag from
-training games that carry tags, and the DFL games carry none. They do carry the official event
-log, with every set piece and the moment it was taken, so we simulate Smart Tagging on them. All
-inputs to the simulation are aggregate measurements on BAR-ATH, not labels:
-- **Which set pieces get a tag:** the per-type rate at which Smart Tagging tags that type in
-  BAR-ATH, relative to how often the type occurs in a DFL game. Throw-ins and goal kicks get 0.59,
-  corners and kick-offs 1.0, free kicks 0.2.
-- **Where the tag sits:** tags start about 4.7 s before the restart our model predicts
-  (10–90%: 1–9 s) and last a fixed ~35 s.
-- **Tags with no restart nearby:** 14% of tags match no predicted restart, so 14% random tags are
-  added.
-- **Teams:** throw-ins and kick-offs get no team, as in Smart Tagging.
+**External training data:** DFL / Sportec Solutions IDSSE open data, CC BY 4.0, via https://huggingface.co/datasets/pysport/idsse-data. Provider flags supply the labels. No labels from the target match are used for training.
 
-Few free kicks are tagged, and free kicks are where the model is slowest to see a stoppage. That
-limits what the tags can add.
+The repository retains the upstream MIT notice. Restricted challenge assets are not redistributed. External training data and software libraries retain their own licenses. See docs/ACKNOWLEDGEMENTS.md for provenance.
 
-**Video ball.** Our upper-bound experiment shows the ceiling: with the ball never missing (all
-other noise kept), the same LightGBM + decoder reaches spellF1 0.711, against 0.654 with realistic
-gaps. A detector that fills 18% of the gaps, with some false detections, would recover a small part
-of that. We could not measure its effect without labels on BAR-ATH. It would also make the
-submission depend on a GPU run over the video, and on an AGPL-3.0 model.
 
-## 9. Limitations
-
-- **Domain gap.** The noise simulation matches aggregate statistics only. An adversarial classifier
-  can still tell the two domains apart, so real errors on BAR-ATH can differ from simulated ones.
-- **Stoppages for fouls** are detected 1–3 s late: the tracking shows no whistle, only players
-  slowing down.
-- **A goalkeeper holding the ball** can read as a stoppage (ball unseen, everyone slow). On held-out
-  DFL games our model calls only 10% of such holds dead, but the share may be higher on BAR-ATH.
-- **Seven training games.** More open tracking data with possession flags would help most. The
-  per-game spread (0.63–0.73) shows how much results vary by match.
-- **The decoder's costs are global.** A context-dependent switching cost, or a semi-Markov
-  duration model, is the next step.
-
-## 10. Reproduction
-
-```bash
-git clone https://github.com/metrica-sports/more-than-a-hack-2027 challenge   # loaders, scorer, validator
-pip install -r requirements-pipeline.txt     # Python 3.12, CPU only
-# match data under data/ (data/tactical/BAR-ATH_tactical_*), or set MTAH_DATA_DIR
-python run.py predict    # ~2 min: submissions/CuleCode.csv from the committed models, then validates it
-python run.py all        # from scratch: download DFL open data, features, CV, tuning, training, predict
-```
-
-- **Determinism.** Seeds are fixed, LightGBM runs in deterministic mode, and PyTorch runs on the
-  CPU with deterministic algorithms. The committed models regenerate the submitted file byte for
-  byte (`submissions/CuleCode.csv`, MD5 `03433039381d97ce285e8fef1b7d95cf`). Refitting both final
-  models from scratch reproduces the committed files bit for bit.
-- **What is committed.** Code, trained models, decoder costs, and aggregate statistics of the
-  provided tracking and Smart Tagging (`models/possession/*.json`: rates, quantiles and offsets,
-  nothing per-frame). No match data, video or per-frame tracking.
-
-| file | what |
-|---|---|
-| `pipeline/data.py` | loaders: provided ATD, DFL open data |
-| `pipeline/noise.py` | noise measurement and simulation |
-| `pipeline/features.py` | per-frame features |
-| `pipeline/tags.py`, `pipeline/tag_rules.py` | Smart Tagging restarts, DFL tag simulation, the quick version |
-| `pipeline/train.py` | leave-one-game-out CV, decoder tuning, final models |
-| `pipeline/seq.py` | bidirectional GRU |
-| `pipeline/decode.py` | Viterbi decoder, controlled-possession target |
-| `pipeline/predict.py` | the submission file |
-| `pipeline/experiments.py`, `pipeline/gru_seeds.py` | dropped experiments: ball upper bound, self-training, GRU seeds |
-| `src/` | the hand-built pipeline and the SkillCorner / Metrica / video experiments |
-
-**Use of AI assistance.** The learned pipeline was written with an LLM coding assistant (Claude).
-In line with the competition terms, no match video, tracking values or other restricted material
-was given to it for the modelling work: it saw only code, error messages and aggregate statistics.
-Early on, before we found that clause, one video frame and a few lines of the raw files were
-exposed to it. Nothing derived from them is used.

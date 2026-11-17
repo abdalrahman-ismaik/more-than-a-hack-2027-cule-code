@@ -22,11 +22,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# Metrica's challenge repo is cloned into challenge/ (see README); the match data lives in data/
-# unless MTAH_DATA_DIR points elsewhere.
-CHALLENGE = os.path.join(ROOT, "challenge")
-os.environ.setdefault("MTAH_DATA_DIR", os.path.join(ROOT, "data"))
-sys.path.insert(0, CHALLENGE)
+sys.path.insert(0, ROOT)
 from games import GAMES, asset_paths, half_video_blocks  # noqa: E402
 
 H, A, D, X = 0, 1, 2, 3

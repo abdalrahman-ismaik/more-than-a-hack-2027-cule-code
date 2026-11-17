@@ -1,50 +1,56 @@
-"""Regenerate the submission from scratch.
+"""Predict the final submission, or reproduce training on external DFL matches."""
 
-    pip install -r requirements-pipeline.txt
-    python run.py download      # the open DFL training games (other matches, CC-BY 4.0)
-    python run.py train         # models/possession/ from the DFL games
-    python run.py predict       # submissions/CuleCode.csv for BAR-ATH
-    python run.py all           # all three
-
-Metrica's challenge repo must be cloned into challenge/ (loaders, scorer, validator), and the
-provided BAR-ATH data is expected under data/tactical/ (or set MTAH_DATA_DIR).
-"""
-
+import argparse
+import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 import urllib.request
-import json
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+ROOT = Path(__file__).resolve().parent
 HF_TREE = "https://huggingface.co/api/datasets/pysport/idsse-data/tree/main"
 HF_FILE = "https://huggingface.co/datasets/pysport/idsse-data/resolve/main/{}"
-DFL_DIR = os.path.join(ROOT, "data", "external", "dfl")
 
 
 def download():
-    os.makedirs(DFL_DIR, exist_ok=True)
+    destination = ROOT / "data" / "external" / "dfl"
+    destination.mkdir(parents=True, exist_ok=True)
     with urllib.request.urlopen(HF_TREE) as response:
-        files = [f["path"] for f in json.load(response) if f["path"].endswith(".xml")]
-    for name in files:
-        target = os.path.join(DFL_DIR, name)
-        if os.path.exists(target):
+        names = [item["path"] for item in json.load(response)
+                 if item["path"].endswith(".xml")]
+    if not names:
+        raise RuntimeError("The DFL dataset listing contains no XML files")
+    for name in names:
+        if Path(name).name != name:
+            raise ValueError("Unexpected nested dataset path: " + name)
+        target = destination / name
+        if target.exists():
             continue
         print("downloading", name, flush=True)
-        urllib.request.urlretrieve(HF_FILE.format(name), target)
+        temporary = target.with_suffix(".xml.part")
+        urllib.request.urlretrieve(HF_FILE.format(name), temporary)
+        temporary.replace(target)
 
 
-def module(name, *args):
-    subprocess.run([sys.executable, "-W", "ignore", "-m", name, *args], cwd=ROOT, check=True)
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("step", nargs="?", default="predict",
+                        choices=("download", "train", "predict", "all"))
+    args = parser.parse_args()
+    # Bound CPU parallelism for repeatable, practical inference on laptops and servers.
+    os.environ.setdefault("OMP_NUM_THREADS", "12")
+    os.environ.setdefault("MKL_NUM_THREADS", "12")
+    if args.step in ("download", "all"):
+        download()
+    if args.step in ("train", "all"):
+        subprocess.run([sys.executable, "-m", "pipeline.train"], cwd=ROOT, check=True)
+    if args.step in ("predict", "all"):
+        subprocess.run([sys.executable, "-m", "pipeline.predict", "--name", "CuleCode"],
+                       cwd=ROOT, check=True)
+        subprocess.run([sys.executable, "evaluation/validate_submission.py",
+                        "submissions/CuleCode.csv"], cwd=ROOT, check=True)
 
 
 if __name__ == "__main__":
-    step = sys.argv[1] if len(sys.argv) > 1 else "all"
-    if step in ("download", "all"):
-        download()
-    if step in ("train", "all"):
-        module("pipeline.train")
-    if step in ("predict", "all"):
-        module("pipeline.predict")
-        subprocess.run([sys.executable, os.path.join("challenge", "evaluation", "validate_submission.py"),
-                        os.path.join("submissions", "CuleCode.csv")], cwd=ROOT, check=True)
+    main()

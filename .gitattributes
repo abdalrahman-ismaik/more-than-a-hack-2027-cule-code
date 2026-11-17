@@ -1,4 +1,5 @@
 * text=auto eol=lf
-# trained models must stay byte-identical
-models/possession/*.txt -text
-models/possession/*.pt binary
+# Frozen artifacts must retain their upstream bytes.
+models/* -text
+models/*.pt binary
+docs/*.pdf binary

@@ -1,0 +1,75 @@
+{
+  "team": "CuléCode",
+  "filename_spelling": "CuleCode",
+  "model": "DFL-only LightGBM + bidirectional GRU, original checkpoint",
+  "model_source": {
+    "repository": "https://github.com/OsamaQ05/barca-hack-2027",
+    "commit": "0fe3337c1b0d861fa3f5d61630687232220ff5ad",
+    "latest_remote_checked": true
+  },
+  "integration_base": "3cbc681",
+  "boundary_policy": {
+    "source": "https://github.com/metrica-sports/more-than-a-hack-2027/blob/main/FAQ.md",
+    "dead_ball_interval_half_open": [
+      110808,
+      113742
+    ],
+    "implementation": "Set H/A/D evidence to [1e-6,1e-6,1-2e-6] before Viterbi; model weights unchanged"
+  },
+  "environment": {
+    "python": "3.12.12",
+    "platform": "Windows",
+    "inference_device": "CPU",
+    "OMP_NUM_THREADS": 12,
+    "MKL_NUM_THREADS": 12,
+    "packages": {
+      "numpy": "2.5.2",
+      "pandas": "3.0.5",
+      "scipy": "1.18.1",
+      "lightgbm": "4.7.0",
+      "numba": "0.68.1",
+      "torch": "2.13.0+cpu",
+      "reportlab": "5.1.0"
+    }
+  },
+  "verification": {
+    "official_format_validator": "passed",
+    "rows": 199319,
+    "frame_start": 0,
+    "frame_end": 199318,
+    "clean_checkout_reproduction": "byte-identical CSV; initially empty tracking cache",
+    "source_checkpoint_artifacts": "exact upstream Git blobs",
+    "known_dead_interval": "all D",
+    "ungraded_frames": "all X",
+    "graded_abstentions": 0,
+    "pdf": "4 pages, rendered and visually inspected",
+    "full_retraining": "not performed for this release"
+  },
+  "prediction": {
+    "label_counts": {
+      "H": 53324,
+      "A": 35773,
+      "D": 69760,
+      "X": 40462
+    },
+    "possessions_full_match": 292
+  },
+  "public_window_check": {
+    "graded_frames": 7500,
+    "reference_possessions": 17,
+    "predicted_possessions": 14,
+    "spell_f1": 0.6451612903225806,
+    "macro_f1": 0.8772556468073289,
+    "purpose": "sanity check only, not model or decoder selection"
+  },
+  "sha256": {
+    "submissions/CuleCode.csv": "582672db091f27c7d100113ea75d62b578de134dcadea4cc70d33d623659e101",
+    "docs/CuleCode.pdf": "72c3ed8dde70ddbea777024c103b2752f2cbfc50edc744ae431abd7ef19e2a52",
+    "models/decoder.json": "9fc86db3789fa38e6a981865bfca73f656d2735d3469c2998156bddb834bb9b2",
+    "models/feature_names.json": "acd99695c44057d91e6586807f4141915969562ebc950fba8fe0466605944ded",
+    "models/gru.pt": "8b75c13fa92e582a12b806a353d5753c8884a59a4623ac7444c804a77eeabe82",
+    "models/lgbm.txt": "4cf66bca947a1d061379ea3c04962c67771b4a07932d0ce4e64432e3ac4ff762",
+    "models/noise_stats.json": "45416c3eeabab1d3bf9979709b60f40f8e69c1226b1d68995c0d33a821e2cd15",
+    "models/noise_stats_dfl.json": "ee5087b7765dd02d94cad4b58dfd5053f0961fb9d2337bfff1a9caf8e70029e1"
+  }
+}
