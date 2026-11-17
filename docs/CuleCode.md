@@ -1,4 +1,4 @@
-# CuléCode
+# CuleCode
 ## Possession from automatic tracking
 More Than a Hack 2027 - Initial Challenge | Technical document | 17 November 2026
 
@@ -11,6 +11,8 @@ More Than a Hack 2027 - Initial Challenge | Technical document | 17 November 202
 We infer home-team possession (H), away-team possession (A) and dead ball (D) from the supplied tactical automatic tracking. Frames outside the supplied halves are X. The final submission has 199,319 rows at 25 frames per second.
 
 The selected system is a LightGBM plus bidirectional GRU ensemble trained on seven external DFL matches. Both models produce probabilities for H, A and D. We average their probabilities and decode each half using a three-state Viterbi algorithm. The model uses 108 geometric and temporal features and can use future observations: this is an offline labeling system, not a live predictor.
+
+<!-- pipeline -->
 
 Only the original DFL-trained checkpoint is used in the submitted file. It comes from Osama Qa'adan's repository, commit 0fe3337c1b0d861fa3f5d61630687232220ff5ad. The selected weights, decoder and feature metadata are unchanged. Packaging adds a team-named command, validation and a feature-order check. We retain the organizer-published second-half pre-kickoff rule already added in the team repository: frames 110808 through 113741 receive dead-ball evidence before decoding.
 
@@ -38,6 +40,13 @@ Single-frame ball spikes are removed and gaps are interpolated. Time since/until
 
 **GRU:** a two-layer bidirectional recurrent network with hidden size 64, evaluated at 5 Hz from the same features and interpolated back to 25 Hz. Training uses six epochs and roughly 51-second chunks. The committed artifact includes its feature scaler.
 
+| Component | Configuration |
+|---|---|
+| LightGBM | 3 classes; 400 rounds; 63 leaves; deterministic seed |
+| BiGRU | 2 layers; hidden size 64; 5 Hz inference; 6 training epochs |
+| Features | 108 geometric and temporal features |
+| Decoder | 3-state Viterbi; switch / enter-D / leave-D costs 4 / 2 / 48 |
+
 **Ensemble:** average the team-symmetric LightGBM and GRU H/A/D probabilities. Decode the resulting log probabilities separately within the organizer-defined half spans. Staying in a state costs zero; a direct team switch costs 4, entering dead ball costs 2 and leaving dead ball costs 48. These are log-score penalties, not probabilities. The organizer FAQ explicitly identifies frames 110808 through 113741 as dead ball. As in the team repository, their probabilities are set to (0.000001, 0.000001, 0.999998) before decoding, so the surrounding sequence is decoded normally. This published boundary rule is not learned from public-window labels.
 
 **Loose balls and challenges:** the features and sequence decoder can retain the prior possessor until control changes; closest-player identity is not a direct final label. **Stoppages:** D separates possessions, including two spells of the same team before and after a stoppage. **Restarts:** a short first possession after D is retained in training. **Missing ball:** missingness alone does not force D or X. **Outside halves:** write X; the pipeline predicts H, A or D throughout each supplied half, including graded pre-kickoff frames.
@@ -51,6 +60,13 @@ The primary metric, spellF1, matches same-team possession intervals one-to-one u
 **Recorded external validation:** seven-game leave-one-game-out training produced mean spellF1 0.6900 and macroF1 0.9178. Recorded per-game spellF1 values are 0.631, 0.675, 0.730, 0.682, 0.706, 0.695 and 0.712. Decoder costs were selected on these same out-of-fold predictions, so this is a development estimate with selection optimism, not an untouched test score. The original OOF arrays were unavailable for independent rescoring; checkpoint identity and recorded logs were checked.
 
 **Public five-minute check:** the recovered original prediction scored spellF1 0.6452 and macroF1 0.8773 on 7,500 public frames, with 14 predicted versus 17 reference possessions. The kickoff rule concerns only the second half and leaves this first-half check unchanged. This small window checks pipeline operation and is not a full-match performance estimate. It was not used to train the models or choose decoder settings.
+
+| Check | Result | Interpretation |
+|---|---:|---|
+| DFL leave-one-game-out spellF1 | 0.6900 | Development estimate; decoder selected on these folds |
+| DFL leave-one-game-out macroF1 | 0.9178 | Development estimate; not an untouched test score |
+| Public five-minute spellF1 | 0.6452 | Sanity check only; 17 reference possessions |
+| Public five-minute macroF1 | 0.8773 | Sanity check only; not used for selection |
 
 **Other work:** earlier geometry-and-tag heuristics, optional video-ball filling, a 27-game DFL/SkillCorner retrain and XGBoost variants were explored. On a common 27-game evaluation, LightGBM + GRU scored 0.5675 spellF1 versus 0.5388 for XGBoost, 0.5472 for XGBoost + GRU and 0.5620 for an equal three-model blend. The retrain's DFL subset scored 0.6689. These mixed-dataset results are not directly comparable to the original seven-game mean because preprocessing, noise realizations, training sets and decoder selection differ. The final release retains the packaged DFL checkpoint; the other models and detector are excluded.
 

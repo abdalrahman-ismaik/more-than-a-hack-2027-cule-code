@@ -19,7 +19,7 @@ model. They do not contribute inputs or weights to the final prediction pipeline
 ## AI assistance
 
 The original pipeline was developed with Claude as a coding assistant. Codex assisted with
-review, packaging, verification and documentation. The original author's technical report
+review, packaging, verification and documentation.
 
 
 

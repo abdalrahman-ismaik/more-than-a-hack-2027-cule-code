@@ -33,6 +33,8 @@ CLAUDE.md
 /evaluation/scoreboard.csv
 /tmp/
 /output/
+/docs/CuleCode.pdf
 /submissions/*
 !/submissions/CuleCode.csv
+!/submissions/CuleCode.pdf
 !/submissions/manifest.json

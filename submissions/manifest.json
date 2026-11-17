@@ -42,7 +42,7 @@
     "known_dead_interval": "all D",
     "ungraded_frames": "all X",
     "graded_abstentions": 0,
-    "pdf": "4 pages, rendered and visually inspected",
+    "pdf": "4 pages; justified text, vector pipeline diagram and configuration/metric tables; rendered and visually inspected",
     "full_retraining": "not performed for this release"
   },
   "prediction": {
@@ -64,12 +64,12 @@
   },
   "sha256": {
     "submissions/CuleCode.csv": "582672db091f27c7d100113ea75d62b578de134dcadea4cc70d33d623659e101",
-    "docs/CuleCode.pdf": "72c3ed8dde70ddbea777024c103b2752f2cbfc50edc744ae431abd7ef19e2a52",
     "models/decoder.json": "9fc86db3789fa38e6a981865bfca73f656d2735d3469c2998156bddb834bb9b2",
     "models/feature_names.json": "acd99695c44057d91e6586807f4141915969562ebc950fba8fe0466605944ded",
     "models/gru.pt": "8b75c13fa92e582a12b806a353d5753c8884a59a4623ac7444c804a77eeabe82",
     "models/lgbm.txt": "4cf66bca947a1d061379ea3c04962c67771b4a07932d0ce4e64432e3ac4ff762",
     "models/noise_stats.json": "45416c3eeabab1d3bf9979709b60f40f8e69c1226b1d68995c0d33a821e2cd15",
-    "models/noise_stats_dfl.json": "ee5087b7765dd02d94cad4b58dfd5053f0961fb9d2337bfff1a9caf8e70029e1"
+    "models/noise_stats_dfl.json": "ee5087b7765dd02d94cad4b58dfd5053f0961fb9d2337bfff1a9caf8e70029e1",
+    "submissions/CuleCode.pdf": "1f026a548325494b97ddd8c438c3aae178776f65d873a234a621d287fabe6f83"
   }
 }

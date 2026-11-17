@@ -12,7 +12,7 @@ and dead ball (D); frames outside the supplied halves are X. There are **108 fea
 ## Submission files
 
 - [Possession CSV](submissions/CuleCode.csv)
-- [Technical document (PDF)](docs/CuleCode.pdf)
+- [Technical document (PDF)](submissions/CuleCode.pdf)
 - [Editable technical document](docs/CuleCode.md)
 - [Checksums and verification](submissions/manifest.json)
 
