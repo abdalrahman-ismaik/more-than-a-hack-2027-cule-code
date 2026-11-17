@@ -20,6 +20,18 @@ MODEL_DIR = os.path.join(ROOT, "models", "possession")
 OUT_DIR = os.path.join(ROOT, "submissions")
 CODES = np.array(["H", "A", "D", "X"])
 
+# FAQ.md: "the second half is graded from frame 110,808 but does not kick off until 113,742. Those
+# 2,934 frames are graded and all of them are D." A published fact about the frame range, applied
+# to the probabilities before decoding so the kickoff that follows is decoded normally.
+KNOWN_DEAD = [(110808, 113742)]
+
+
+def apply_known_dead(probs):
+    probs = probs.copy()
+    for start, stop in KNOWN_DEAD:
+        probs[start:stop] = (1e-6, 1e-6, 1.0 - 2e-6)
+    return probs
+
 
 def probabilities(match, model, xa, xb):
     probs = np.full((match.n_frames, 3), np.nan)
@@ -57,6 +69,7 @@ def main():
     p_gru = seq.predict(gru, xa, xb, match.segments)
     probs = (p_lgb + p_gru) / 2.0
     np.save(os.path.join(data.CACHE_DIR, "BAR-ATH_probs.npy"), probs)
+    probs = apply_known_dead(np.nan_to_num(probs, nan=1 / 3))
     codes = decode.decode(np.nan_to_num(probs, nan=1 / 3), match.segments, params,
                           n_frames=match.n_frames)
     path = write_csv(os.path.join(OUT_DIR, args.name + ".csv"), codes)
